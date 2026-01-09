@@ -75,7 +75,7 @@ def make_tarball(bundlecfg, bundle, basearch, dver, packages, patch_dirs, prog_d
     with yumconf.YumInstaller(repofile, dver, basearch, extra_repos) as yum:
         if not version:
             if bundlecfg.has_option(bundle, 'versionrpm'):
-                version = yum.repoquery(bundlecfg.get(bundle, 'versionrpm'), "--queryformat=%{VERSION}").rstrip()
+                version = yum.repoquery(bundlecfg.get(bundle, 'versionrpm'), "--latest-limit", "1", "--queryformat=%{VERSION}").rstrip()
             else:
                 version = 'unknown'
         tarball_path = bundlecfg.get(bundle, 'tarballname') % locals()
