@@ -182,14 +182,16 @@ def fix_osg_location_in_sysconfig_bestman2(staging_dir, final_osg_location):
         failure("Unable to fix BeSTMan2 sysconfig file for the following reason:\n%s" % err)
 
 
-def check_required_binaries():
+def check_required_binaries(staging_dir):
     """Make sure we have all the prerequisites for running the tarball install.
 
     """
     print_nonl("Checking for required binaries...")
-    if not os.path.exists("/usr/bin/perl"):
-        failure("/usr/bin/perl not found (run \"yum install perl\" to install)")
-        return False
+    if os.path.exists(os.path.join(staging_dir, "usr/sbin/fetch-crl")):
+        # We need perl for fetch-crl
+        if not os.path.exists("/usr/bin/perl"):
+            failure("/usr/bin/perl not found (run \"yum install perl\" to install)")
+            return False
     success()
     return True
 
@@ -246,10 +248,6 @@ def get_staging_dir(arg_staging_dir=None):
 def main(argv):
     options, args = parse_cmdline_args(argv)
 
-    if not check_required_binaries():
-        print("Required binaries not installed. Please install them.")
-        return 1
-
     if len(args) > 0:
         staging_dir = get_staging_dir(args[0])
     else:
@@ -258,6 +256,10 @@ def main(argv):
     if not staging_dir:
         print("No valid staging directory found.")
         return 2
+
+    if not check_required_binaries(staging_dir):
+        print("Required binaries not installed. Please install them.")
+        return 1
 
     if options.final_osg_location:
         print("Final OSG_LOCATION specified as %r" % (options.final_osg_location))
