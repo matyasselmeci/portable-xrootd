@@ -2,10 +2,14 @@ import errno
 import os
 import subprocess
 import sys
+import typing
 
 
 class Error(Exception):
     pass
+
+
+Pathable = typing.Union[str, os.PathLike]
 
 
 def statusmsg(*args):
