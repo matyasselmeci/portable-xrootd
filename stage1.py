@@ -10,7 +10,6 @@ The database is needed for installing the software we will put in the final
 tarballs, but will not be included in the tarballs.
 """
 
-import glob
 import grp
 import os
 import pipes
@@ -18,12 +17,11 @@ import shlex
 import shutil
 import stat
 import subprocess
-import sys
 from os.path import join as opj
 
 import common
 import yumconf
-from common import Error, errormsg, safe_makedirs, statusmsg
+from common import Error, errormsg, statusmsg
 
 # Character devices to put in /dev in the chroot.  Fields are:
 # name, major, minor, group, perms

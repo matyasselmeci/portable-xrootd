@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import configparser
 import os
 import re
 import shutil
@@ -6,17 +7,6 @@ import subprocess
 import sys
 import tempfile
 from optparse import OptionParser
-
-try:
-    import ConfigParser
-except ImportError:
-    import configparser as ConfigParser
-
-try:
-    from shutil import which as find_executable
-except ImportError:  # Python 2:
-    from distutils.spawn import find_executable
-
 
 # make sure we can find our imports
 if __name__ == "__main__" and __package__ is None:
@@ -26,7 +16,14 @@ if __name__ == "__main__" and __package__ is None:
 import stage1
 import stage2
 import yumconf
-from common import *
+from common import (
+    DEFAULT_BASEARCH,
+    VALID_BASEARCHES,
+    VALID_DVERS,
+    errormsg,
+    statusmsg,
+    to_str,
+)
 
 BUNDLES_FILE = 'bundles.ini'
 
@@ -41,7 +38,7 @@ def check_running_as_root():
 def check_tools():
     ret = True
     for tool in ["patch", "find", "tar", "rpm", "yum", "yumdownloader"]:
-        if not find_executable(tool):
+        if not shutil.which(tool):
             errormsg("Required executable '%s' not found" % tool)
             ret = False
     return ret
@@ -207,7 +204,10 @@ or: %prog [options] --version=<version> --all
 
     if options.version:
         match = re.search(r'^[0-9.]+\.', options.version)
-        options.osgver = match.group()[0:-1]
+        if match:
+            options.osgver = match.group()[0:-1]
+        else:
+            options.osgver = None
 
     if options.prerelease:
         options.extra_repos = options.extra_repos or []
@@ -217,7 +217,7 @@ or: %prog [options] --version=<version> --all
 
 
 def main(argv):
-    prog_name = os.path.basename(argv[0])
+    # prog_name = os.path.basename(argv[0])
     prog_dir = os.path.dirname(argv[0])
 
     options, args = parse_cmdline_args(argv)
@@ -232,9 +232,8 @@ def main(argv):
     if not check_yum_priorities():
         return 1
 
-    bundlecfg = ConfigParser.RawConfigParser()
-    with open(os.path.join(prog_dir, BUNDLES_FILE)) as bundlesfh:
-        bundlecfg.readfp(bundlesfh)
+    bundlecfg = configparser.ConfigParser()
+    bundlecfg.read(os.path.join(prog_dir, BUNDLES_FILE))
 
     if options.bundles:
         bundles = options.bundles

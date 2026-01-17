@@ -1,6 +1,5 @@
 import glob
 import os
-import re
 import shutil
 import subprocess
 import tempfile
@@ -12,7 +11,6 @@ from common import (
     Error,
     errormsg,
     safe_makedirs,
-    safe_symlink,
     statusmsg,
     to_bytes,
     to_str,
@@ -41,13 +39,14 @@ def write_package_list_file(stage_dir_abs, exclude_list=None):
 
     cmd = ["rpm", "--root", stage_dir_abs, "-qa"]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-    output = to_str(proc.communicate()[0])
+    output: str = to_str(proc.communicate()[0])
     retcode = proc.returncode
 
     if retcode != 0:
         raise subprocess.CalledProcessError(retcode, ' '.join(cmd))
 
-    package_set = set(output.strip().split())
+    assert isinstance(output, str)
+    package_set: set[str] = set(output.strip().split())  # type:ignore
     exclude_set = set(exclude_list)
     package_set.difference_update(exclude_set)
 
@@ -265,7 +264,7 @@ def make_stage2_tarball(
     repofile,
     dver,
     basearch,
-    relnum=0,
+    relnum="0",
     extra_repos=None,
 ):
     def _statusmsg(msg):
