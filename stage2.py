@@ -106,48 +106,6 @@ def patch_installed_packages(stage_dir_abs, patch_dirs, dver):
         os.chdir(oldwd)
 
 
-def fix_osg_version(stage_dir_abs, relnum=""):
-    osg_version_path = os.path.join(stage_dir_abs, 'etc/osg-version')
-    version_str = new_version_str = ""
-    _relnum = ""
-    if relnum:
-        _relnum = "-" + str(relnum)
-
-    with open(osg_version_path) as osg_version_fh:
-        version_str = osg_version_fh.readline()
-        if not version_str:
-            raise Error("Could not read version string from %r" % osg_version_path)
-        if not re.match(r'[0-9.]+', version_str):
-            raise Error("%r does not contain version" % osg_version_path)
-
-        if 'tarball' in version_str:
-            new_version_str = version_str
-        else:
-            new_version_str = re.sub(
-                r'^([0-9.]+)(?!-tarball)', r'\1-tarball%s' % (_relnum), version_str
-            )
-
-    with open(osg_version_path, 'w') as osg_version_write_fh:
-        osg_version_write_fh.write(new_version_str)
-
-
-def fix_gsissh_config_dir(stage_dir_abs):
-    """A hack to fix gsissh, which looks for $GLOBUS_LOCATION/etc/ssh.
-    The actual files are in $OSG_LOCATION/etc/gsissh, so make a symlink.
-    Make it a relative symlink so we don't have to fix it in post-install.
-
-    """
-    if not os.path.isdir(os.path.join(stage_dir_abs, 'etc/gsissh')):
-        return
-
-    try:
-        usr_etc = os.path.join(stage_dir_abs, 'usr/etc')
-        safe_makedirs(usr_etc)
-        os.symlink('../../etc/gsissh', os.path.join(usr_etc, 'ssh'))
-    except OSError as err:
-        raise Error("unable to fix gsissh config dir: %s" % err)
-
-
 def copy_osg_post_scripts(stage_dir_abs, post_scripts_dir, dver, basearch):
     """Copy osg scripts from post_scripts_dir to the stage2 directory"""
 
@@ -328,14 +286,6 @@ def make_stage2_tarball(
             patch_installed_packages(
                 stage_dir_abs=stage_dir_abs, patch_dirs=patch_dirs, dver=dver
             )
-
-        if package_installed(stage_dir_abs, 'gsi-openssh'):
-            _statusmsg("Fixing gsissh config dir (if needed)")
-            fix_gsissh_config_dir(stage_dir_abs)
-
-        if package_installed(stage_dir_abs, 'osg-version'):
-            _statusmsg("Fixing osg-version")
-            fix_osg_version(stage_dir_abs, relnum)
 
         _statusmsg("Fixing broken /etc/alternatives symlinks")
         fix_alternatives_symlinks(stage_dir_abs)
