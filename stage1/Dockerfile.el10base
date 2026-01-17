@@ -1,0 +1,7 @@
+FROM docker.io/library/almalinux:10 AS alma10core
+RUN yum install --allowerasing -y @core
+
+FROM alma10core AS osgel10base
+RUN yum install -y epel-release \
+    https://repo.osg-htc.org/osg/25-main/osg-25-main-el10-release-latest.rpm \
+    && crb enable
