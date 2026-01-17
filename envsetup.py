@@ -21,7 +21,7 @@ import sys
 
 shell_construct = {
     'csh': {
-        'setenv'     : (lambda var,value : 'setenv %s "%s"\n' % (var,value)),
+        'setenv'     : (lambda var,value : f'setenv {var} "{value}"\n'),
         'ifdef'      : (lambda var       : 'if ($?%s) then\n' % var),
         'ifreadable' : (lambda fname     : 'if -r "%s" then\n' % fname),
         'else'       : 'else\n',
@@ -29,7 +29,7 @@ shell_construct = {
         'source'     : (lambda fname     : 'source "%s"\n' % (fname)),
     },
     'sh': {
-        'setenv'     : (lambda var,value : 'export %s="%s"\n' % (var,value)),
+        'setenv'     : (lambda var,value : f'export {var}="{value}"\n'),
         'ifdef'      : (lambda var       : 'if [ "X" != "X${%s-}" ]; then\n' % var),
         'ifreadable' : (lambda fname     : 'if [ -r "%s" ]; then\n' % fname),
         'else'       : 'else\n',
@@ -143,7 +143,7 @@ def write_setup_in_files(dest_dir, dver, basearch):
             + _endif
             + "\n")
 
-        with open(dest_path, "wt") as fh:
+        with open(dest_path, "w") as fh:
             fh.write(text_to_write)
 
 

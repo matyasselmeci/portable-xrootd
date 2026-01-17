@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import glob
 import os
 import shutil
@@ -26,12 +25,12 @@ class YumEraseError(Error):
     def __init__(self, packages, rootdir, err):
         super(self.__class__, self).__init__("Could not erase %r from %r (rpm process returned %d)" % (packages, rootdir, err))
 
-class YumInstaller(object):
+class YumInstaller:
     def __init__(self, templatefile, dver, basearch, extra_repos=None):
         if not dver in VALID_DVERS:
-            raise ValueError('Invalid dver, should be in {0}'.format(VALID_DVERS))
+            raise ValueError(f'Invalid dver, should be in {VALID_DVERS}')
         if not basearch in VALID_BASEARCHES:
-            raise ValueError('Invalid basearch, should be in {0}'.format(VALID_BASEARCHES))
+            raise ValueError(f'Invalid basearch, should be in {VALID_BASEARCHES}')
 
         self.dver = dver
         self.basearch = basearch
@@ -83,7 +82,7 @@ class YumInstaller(object):
     def _add_repos(self):
         self.repotemplate = ConfigParser.SafeConfigParser({'dver': self.dver, 'basearch': self.basearch})
 
-        with open(self.templatefile, 'r') as templatefp:
+        with open(self.templatefile) as templatefp:
             self.repotemplate.readfp(templatefp)
 
         for sec in self.repotemplate.sections():

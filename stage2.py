@@ -1,5 +1,3 @@
-from __future__ import print_function
-from __future__ import absolute_import
 import glob
 import os
 import re
@@ -25,7 +23,7 @@ def get_stage1_rpmlist(stage_dir_abs):
     will be in the tarball contents.
 
     """
-    with open(os.path.join(stage_dir_abs, 'stage1_rpmlist'), 'rt') as stage1_rpmlist:
+    with open(os.path.join(stage_dir_abs, 'stage1_rpmlist')) as stage1_rpmlist:
         return stage1_rpmlist.read().strip().split()
 
 
@@ -46,7 +44,7 @@ def write_package_list_file(stage_dir_abs, exclude_list=None):
     exclude_set = set(exclude_list)
     package_set.difference_update(exclude_set)
 
-    with open(os.path.join(stage_dir_abs, 'osg/rpm-versions.txt'), 'wt') as output_fh:
+    with open(os.path.join(stage_dir_abs, 'osg/rpm-versions.txt'), 'w') as output_fh:
         output_fh.write("\n".join(sorted(package_set)) + "\n")
 
 
@@ -135,7 +133,7 @@ def fix_gsissh_config_dir(stage_dir_abs):
         usr_etc = os.path.join(stage_dir_abs, 'usr/etc')
         safe_makedirs(usr_etc)
         os.symlink('../../etc/gsissh', os.path.join(usr_etc, 'ssh'))
-    except EnvironmentError as err:
+    except OSError as err:
         raise Error("unable to fix gsissh config dir: %s" % err)
 
 
@@ -155,12 +153,12 @@ def copy_osg_post_scripts(stage_dir_abs, post_scripts_dir, dver, basearch):
         try:
             shutil.copyfile(script_path, dest_path)
             os.chmod(dest_path, 0o755)
-        except EnvironmentError as err:
-            raise Error("unable to copy script (%r) to (%r): %s" % (script_path, dest_dir, err))
+        except OSError as err:
+            raise Error(f"unable to copy script ({script_path!r}) to ({dest_dir!r}): {err}")
 
     try:
         envsetup.write_setup_in_files(dest_dir, dver, basearch)
-    except EnvironmentError as err:
+    except OSError as err:
         raise Error("unable to create environment script templates (setup.csh.in, setup.sh.in): %s" % err)
 
 
@@ -220,7 +218,7 @@ def tar_stage_dir(stage_dir_abs, tarball):
 
     err = subprocess.call(cmd)
     if err:
-        raise Error("unable to create tarball (%r) from stage 2 dir (%r)" % (tarball_abs, stage_dir_abs))
+        raise Error(f"unable to create tarball ({tarball_abs!r}) from stage 2 dir ({stage_dir_abs!r})")
 
 
 def fix_alternatives_symlinks(stage_dir_abs):
@@ -234,12 +232,12 @@ def fix_alternatives_symlinks(stage_dir_abs):
                 continue
             stage_linkpath = os.path.join(stage_dir_abs, linkpath.lstrip('/'))
             if not os.path.islink(stage_linkpath):
-                print("broken symlink to alternatives? {0} -> {1}".format(afilepath, stage_linkpath))
+                print(f"broken symlink to alternatives? {afilepath} -> {stage_linkpath}")
                 continue
             alternatives_linkpath = os.readlink(stage_linkpath)
             stage_alternatives_linkpath = os.path.join(stage_dir_abs, alternatives_linkpath.lstrip('/'))
             if not os.path.exists(stage_alternatives_linkpath):
-                print("broken symlink from alternatives? {0} -> {1}".format(stage_linkpath, stage_alternatives_linkpath))
+                print(f"broken symlink from alternatives? {stage_linkpath} -> {stage_alternatives_linkpath}")
                 continue
             new_linkpath = os.path.relpath(stage_alternatives_linkpath, start=os.path.dirname(afilepath))
             os.unlink(afilepath)
@@ -272,7 +270,7 @@ def remove_empty_dirs_from_tarball(tarball, topdir, recreate_dirs=None):
 
 def make_stage2_tarball(stage_dir, packages, tarball, patch_dirs, post_scripts_dir, repofile, dver, basearch, relnum=0, extra_repos=None):
     def _statusmsg(msg):
-        statusmsg("[%r,%r]: %s" % (dver, basearch, msg))
+        statusmsg(f"[{dver!r},{basearch!r}]: {msg}")
 
     _statusmsg("Making stage2 tarball in %r" % stage_dir)
 

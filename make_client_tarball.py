@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-from __future__ import print_function
 import sys
 
 import os
@@ -94,7 +93,7 @@ def make_tarball(bundlecfg, bundle, basearch, dver, packages, patch_dirs, prog_d
                 basearch         = basearch,
                 relnum           = relnum,
                 extra_repos      = extra_repos):
-            errormsg("Making stage 2 tarball for %s unsuccessful. Files have been left in %r" % (packages, stage_dir))
+            errormsg(f"Making stage 2 tarball for {packages} unsuccessful. Files have been left in {stage_dir!r}")
             return (False, None, 0)
         tarball_size = os.stat(tarball_path)[6]
         return (True, tarball_path, tarball_size)
@@ -113,7 +112,7 @@ or: %prog [options] --version=<version> --all
     parser.add_option("-b", "--basearch", help="Build tarball for this base architecture. Must be one of (" + ", ".join(VALID_BASEARCHES) + "). Default is %default.", default=DEFAULT_BASEARCH)
     parser.add_option("-a", "--all", default=False, action="store_true", help="Build tarballs for all dver,basearch combinations.")
     parser.add_option("--keep", default=False, action="store_true", help="Keep temp dirs after tarball creation")
-    parser.add_option("--bundle", dest="bundles", action="append", default=[], help="Names of bundles (from {0}) to make tarballs for".format(BUNDLES_FILE))
+    parser.add_option("--bundle", dest="bundles", action="append", default=[], help=f"Names of bundles (from {BUNDLES_FILE}) to make tarballs for")
     parser.add_option("--extra-repos", dest="extra_repos", action="append", help="Extra yum repos to use")
 
     options, args = parser.parse_args(argv[1:])
@@ -183,7 +182,7 @@ def main(argv):
             paramsets = [(options.dver, options.basearch)]
 
         for dver, basearch in paramsets:
-            stage_dir_parent = tempfile.mkdtemp(prefix='stagedir-%s-%s-' % (dver, basearch))
+            stage_dir_parent = tempfile.mkdtemp(prefix=f'stagedir-{dver}-{basearch}-')
             stage_dir = os.path.join(stage_dir_parent, bundlecfg.get(bundle, 'dirname'))
 
             statusmsg("Making stage 1 dir")
@@ -219,7 +218,7 @@ def main(argv):
                 try:
                     with os.popen("tar tzf %s | wc -l" % tarball_path) as ph:
                         tarball_filecount = int(to_str(ph.read()))
-                except (EnvironmentError, ValueError) as e:
+                except (OSError, ValueError) as e:
                     print("error getting file count: %s" % e)
                 written_tarballs.append([tarball_path, tarball_size, tarball_filecount])
                 print("Tarball created as %r, size %d bytes, %d files" % (tarball_path, tarball_size, tarball_filecount))

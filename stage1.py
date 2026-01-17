@@ -10,8 +10,6 @@ The database is needed for installing the software we will put in the final
 tarballs, but will not be included in the tarballs.
 """
 
-from __future__ import absolute_import
-from __future__ import print_function
 import glob
 import grp
 import os
@@ -53,7 +51,7 @@ def make_stage1_root_dir(stage1_root):
             shutil.rmtree(stage1_root)
         os.makedirs(stage1_root)
     except OSError as err:
-        raise Error("Could not create stage 1 root dir %s: %s" % (stage1_root, err))
+        raise Error(f"Could not create stage 1 root dir {stage1_root}: {err}")
 
 
 def init_stage1_rpmdb(stage1_root):
@@ -72,12 +70,12 @@ def init_stage1_devices(stage1_root):
         try:
             os.mknod(path, perms | stat.S_IFCHR, os.makedev(major, minor))
             os.chown(path, -1, grp.getgrnam(group).gr_gid)
-        except EnvironmentError as err:
-            raise Error("Could not create /dev/%s in the chroot: %s" % (name, err))
+        except OSError as err:
+            raise Error(f"Could not create /dev/{name} in the chroot: {err}")
 
 
 def get_stage1_packages(pkglist_file):
-    with open(pkglist_file, 'rt') as filehandle:
+    with open(pkglist_file) as filehandle:
         return list(filter(None, shlex.split(filehandle.read(), comments=True)))
 
 
@@ -137,7 +135,7 @@ def make_stage1_rpmlist(stage_dir, stage1_root):
 
 def make_stage1_dir(stage_dir, repofile, dver, basearch, pkglist_file):
     def _statusmsg(msg):
-        statusmsg("[%r,%r]: %s" % (dver, basearch, msg))
+        statusmsg(f"[{dver!r},{basearch!r}]: {msg}")
 
     _statusmsg("Using %r for stage 1 directory" % stage_dir)
     stage1_root = os.path.realpath(stage_dir)

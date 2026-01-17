@@ -1,4 +1,3 @@
-from __future__ import print_function
 import errno
 import os
 import subprocess
@@ -54,7 +53,7 @@ def to_bytes(strlike, encoding="latin-1", errors="backslashescape"):
         return strlike
 
 
-class MountProcFS(object):
+class MountProcFS:
     def __init__(self, root_dir):
         self.root_dir = root_dir
         self.proc_dir = os.path.join(root_dir, 'proc')
