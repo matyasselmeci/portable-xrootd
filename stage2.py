@@ -5,11 +5,18 @@ import shutil
 import subprocess
 import tempfile
 
+import common
 import envsetup
 import yumconf
-
-import common
-from common import statusmsg, errormsg, safe_makedirs, safe_symlink, Error, to_str, to_bytes
+from common import (
+    Error,
+    errormsg,
+    safe_makedirs,
+    safe_symlink,
+    statusmsg,
+    to_bytes,
+    to_str,
+)
 
 
 def package_installed(stage_dir_abs, pkg):
@@ -48,7 +55,9 @@ def write_package_list_file(stage_dir_abs, exclude_list=None):
         output_fh.write("\n".join(sorted(package_set)) + "\n")
 
 
-def install_packages(stage_dir_abs, packages, repofile, dver, basearch, extra_repos=None):
+def install_packages(
+    stage_dir_abs, packages, repofile, dver, basearch, extra_repos=None
+):
     """Install packages into a stage1 dir"""
     if isinstance(packages, str):
         packages = [packages]
@@ -60,7 +69,7 @@ def install_packages(stage_dir_abs, packages, repofile, dver, basearch, extra_re
     # Check that the packages got installed
     for pkg in packages:
         if pkg.startswith('@'):
-            continue # can't check on groups
+            continue  # can't check on groups
         if not package_installed(stage_dir_abs, pkg):
             raise Error("%r not installed after yum install" % pkg)
 
@@ -89,7 +98,7 @@ def patch_installed_packages(stage_dir_abs, patch_dirs, dver):
         patch_files.sort(key=os.path.basename)
         for patch_file in patch_files:
             statusmsg("Applying patch %r" % patch_file)
-            #statusmsg("Applying patch %r" % os.path.basename(patch_file))
+            # statusmsg("Applying patch %r" % os.path.basename(patch_file))
             err = subprocess.call(['patch', '-p1', '--force', '--input', patch_file])
             if err:
                 raise Error("patch file %r failed to apply" % patch_file)
@@ -114,7 +123,9 @@ def fix_osg_version(stage_dir_abs, relnum=""):
         if 'tarball' in version_str:
             new_version_str = version_str
         else:
-            new_version_str = re.sub(r'^([0-9.]+)(?!-tarball)', r'\1-tarball%s' % (_relnum), version_str)
+            new_version_str = re.sub(
+                r'^([0-9.]+)(?!-tarball)', r'\1-tarball%s' % (_relnum), version_str
+            )
 
     with open(osg_version_path, 'w') as osg_version_write_fh:
         osg_version_write_fh.write(new_version_str)
@@ -154,15 +165,22 @@ def copy_osg_post_scripts(stage_dir_abs, post_scripts_dir, dver, basearch):
             shutil.copyfile(script_path, dest_path)
             os.chmod(dest_path, 0o755)
         except OSError as err:
-            raise Error(f"unable to copy script ({script_path!r}) to ({dest_dir!r}): {err}")
+            raise Error(
+                f"unable to copy script ({script_path!r}) to ({dest_dir!r}): {err}"
+            )
 
     try:
         envsetup.write_setup_in_files(dest_dir, dver, basearch)
     except OSError as err:
-        raise Error("unable to create environment script templates (setup.csh.in, setup.sh.in): %s" % err)
+        raise Error(
+            "unable to create environment script templates (setup.csh.in, setup.sh.in): %s"
+            % err
+        )
 
 
-def _write_exclude_list(stage1_filelist_path, exclude_list_path, prepend_dir, extra_excludes=None):
+def _write_exclude_list(
+    stage1_filelist_path, exclude_list_path, prepend_dir, extra_excludes=None
+):
     assert stage1_filelist_path != exclude_list_path
     with open(stage1_filelist_path, 'rb') as in_fh:
         with open(exclude_list_path, 'wb') as out_fh:
@@ -182,31 +200,33 @@ def tar_stage_dir(stage_dir_abs, tarball):
     stage_dir_parent = os.path.dirname(stage_dir_abs)
     stage_dir_base = os.path.basename(stage_dir_abs)
 
-    excludes = ["var/log/yum.log",
-                "tmp/*",
-                "var/cache/yum/*",
-                "var/lib/rpm/*",
-                "var/lib/yum/*",
-                "var/tmp/*",
-                "dev/*",
-                "proc/*",
-                "etc/rc.d/rc?.d",
-                "etc/alternatives",
-                "var/lib/alternatives",
-                "usr/bin/[[]",
-                "usr/share/man/man1/[[].1.gz",
-                "bin/dbus*",
-                "lib/libcap*",
-                "lib/dbus*",
-                "lib/security/pam*.so",
-                "lib64/libcap*",
-                "lib64/dbus*",
-                "lib64/security/pam*.so",
-                "usr/bin/gnome*",
-                "*~",
-                "*.py[co]",
-                "__pycache__",
-                "stage1_rpmlist"]
+    excludes = [
+        "var/log/yum.log",
+        "tmp/*",
+        "var/cache/yum/*",
+        "var/lib/rpm/*",
+        "var/lib/yum/*",
+        "var/tmp/*",
+        "dev/*",
+        "proc/*",
+        "etc/rc.d/rc?.d",
+        "etc/alternatives",
+        "var/lib/alternatives",
+        "usr/bin/[[]",
+        "usr/share/man/man1/[[].1.gz",
+        "bin/dbus*",
+        "lib/libcap*",
+        "lib/dbus*",
+        "lib/security/pam*.so",
+        "lib64/libcap*",
+        "lib64/dbus*",
+        "lib64/security/pam*.so",
+        "usr/bin/gnome*",
+        "*~",
+        "*.py[co]",
+        "__pycache__",
+        "stage1_rpmlist",
+    ]
 
     cmd = ["tar", "-C", stage_dir_parent, "-czf", tarball_abs, stage_dir_base]
 
@@ -218,7 +238,9 @@ def tar_stage_dir(stage_dir_abs, tarball):
 
     err = subprocess.call(cmd)
     if err:
-        raise Error(f"unable to create tarball ({tarball_abs!r}) from stage 2 dir ({stage_dir_abs!r})")
+        raise Error(
+            f"unable to create tarball ({tarball_abs!r}) from stage 2 dir ({stage_dir_abs!r})"
+        )
 
 
 def fix_alternatives_symlinks(stage_dir_abs):
@@ -232,14 +254,22 @@ def fix_alternatives_symlinks(stage_dir_abs):
                 continue
             stage_linkpath = os.path.join(stage_dir_abs, linkpath.lstrip('/'))
             if not os.path.islink(stage_linkpath):
-                print(f"broken symlink to alternatives? {afilepath} -> {stage_linkpath}")
+                print(
+                    f"broken symlink to alternatives? {afilepath} -> {stage_linkpath}"
+                )
                 continue
             alternatives_linkpath = os.readlink(stage_linkpath)
-            stage_alternatives_linkpath = os.path.join(stage_dir_abs, alternatives_linkpath.lstrip('/'))
+            stage_alternatives_linkpath = os.path.join(
+                stage_dir_abs, alternatives_linkpath.lstrip('/')
+            )
             if not os.path.exists(stage_alternatives_linkpath):
-                print(f"broken symlink from alternatives? {stage_linkpath} -> {stage_alternatives_linkpath}")
+                print(
+                    f"broken symlink from alternatives? {stage_linkpath} -> {stage_alternatives_linkpath}"
+                )
                 continue
-            new_linkpath = os.path.relpath(stage_alternatives_linkpath, start=os.path.dirname(afilepath))
+            new_linkpath = os.path.relpath(
+                stage_alternatives_linkpath, start=os.path.dirname(afilepath)
+            )
             os.unlink(afilepath)
             os.symlink(new_linkpath, afilepath)
 
@@ -268,7 +298,18 @@ def remove_empty_dirs_from_tarball(tarball, topdir, recreate_dirs=None):
         shutil.rmtree(extract_dir)
 
 
-def make_stage2_tarball(stage_dir, packages, tarball, patch_dirs, post_scripts_dir, repofile, dver, basearch, relnum=0, extra_repos=None):
+def make_stage2_tarball(
+    stage_dir,
+    packages,
+    tarball,
+    patch_dirs,
+    post_scripts_dir,
+    repofile,
+    dver,
+    basearch,
+    relnum=0,
+    extra_repos=None,
+):
     def _statusmsg(msg):
         statusmsg(f"[{dver!r},{basearch!r}]: {msg}")
 
@@ -284,7 +325,9 @@ def make_stage2_tarball(stage_dir, packages, tarball, patch_dirs, post_scripts_d
                 patch_dirs = [patch_dirs]
 
             _statusmsg("Patching packages using %r" % patch_dirs)
-            patch_installed_packages(stage_dir_abs=stage_dir_abs, patch_dirs=patch_dirs, dver=dver)
+            patch_installed_packages(
+                stage_dir_abs=stage_dir_abs, patch_dirs=patch_dirs, dver=dver
+            )
 
         if package_installed(stage_dir_abs, 'gsi-openssh'):
             _statusmsg("Fixing gsissh config dir (if needed)")
@@ -314,7 +357,9 @@ def make_stage2_tarball(stage_dir, packages, tarball, patch_dirs, post_scripts_d
         recreate_dirs = ['var/lib/osg-ca-certs']
         if package_installed(stage_dir_abs, 'fetch-crl'):
             recreate_dirs.append('etc/fetch-crl.d')
-        remove_empty_dirs_from_tarball(tarball, os.path.basename(stage_dir), recreate_dirs)
+        remove_empty_dirs_from_tarball(
+            tarball, os.path.basename(stage_dir), recreate_dirs
+        )
 
         return True
     except Error as err:

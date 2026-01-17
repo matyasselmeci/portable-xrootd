@@ -1,11 +1,11 @@
 from __future__ import print_function
+
 import glob
-import re
 import os
+import re
 import shutil
 import sys
 import tempfile
-
 from optparse import OptionParser
 
 SCRIPT_NAME = os.path.basename(sys.argv[0])
@@ -18,19 +18,36 @@ ANSI_COLOR_BRIGHT_GREEN = "\x1b[32;1m"
 ANSI_COLOR_BRIGHT_RED = "\x1b[31;1m"
 ANSI_COLOR_NORMAL = "\x1b[0;m"
 
+
 def print_nonl(*args):
     sys.stdout.write(" ".join(args))
     sys.stdout.flush()
 
+
 def success():
     if sys.stdout.isatty():
-        print(ANSI_CURSOR_TO_COLUMN_60 + "[" + ANSI_COLOR_BRIGHT_GREEN + " OK " + ANSI_COLOR_NORMAL + "]")
+        print(
+            ANSI_CURSOR_TO_COLUMN_60
+            + "["
+            + ANSI_COLOR_BRIGHT_GREEN
+            + " OK "
+            + ANSI_COLOR_NORMAL
+            + "]"
+        )
     else:
         print("[ OK ]")
 
+
 def failure(message=""):
     if sys.stdout.isatty():
-        print(ANSI_CURSOR_TO_COLUMN_60 + "[" + ANSI_COLOR_BRIGHT_RED + "FAIL" + ANSI_COLOR_NORMAL + "]")
+        print(
+            ANSI_CURSOR_TO_COLUMN_60
+            + "["
+            + ANSI_COLOR_BRIGHT_RED
+            + "FAIL"
+            + ANSI_COLOR_NORMAL
+            + "]"
+        )
     else:
         print("[FAIL]")
     if message:
@@ -53,7 +70,11 @@ def write_setup_from_templates(staging_dir, final_osg_location):
     abs_staging_dir = os.path.abspath(staging_dir)
 
     print("Creating environment setup files...")
-    for setup_file, mode in ('setup.sh', 0o644), ('setup.csh', 0o644), ('osgrun', 0o755):
+    for setup_file, mode in (
+        ('setup.sh', 0o644),
+        ('setup.csh', 0o644),
+        ('osgrun', 0o755),
+    ):
         setup_in_file = setup_file + ".in"
         setup_in_path = os.path.join(abs_staging_dir, "osg", setup_in_file)
         setup_path = os.path.join(abs_staging_dir, setup_file)
@@ -68,15 +89,23 @@ def write_setup_from_templates(staging_dir, final_osg_location):
         try:
             setup_fh = open(setup_path, 'w')
             setup_in_fh = open(setup_in_path, 'r')
-            if mode != 0o755: # Executables have shebang lines so don't prepend the comment
-                setup_fh.write("""\
+            if (
+                mode != 0o755
+            ):  # Executables have shebang lines so don't prepend the comment
+                setup_fh.write(
+                    """\
 # This file was automatically generated from %s by %s
 # Rerunning %s will cause modifications to be lost.
-""" % (setup_in_path, SCRIPT_NAME, SCRIPT_NAME))
+"""
+                    % (setup_in_path, SCRIPT_NAME, SCRIPT_NAME)
+                )
             for in_line in setup_in_fh:
                 setup_fh.write(re.sub(r'@@OSG_LOCATION@@', final_osg_location, in_line))
         except EnvironmentError as err:
-            failure("Unable to write environment setup file for the following reason:\n%s" % err)
+            failure(
+                "Unable to write environment setup file for the following reason:\n%s"
+                % err
+            )
         finally:
             if setup_fh:
                 setup_fh.close()
@@ -84,7 +113,7 @@ def write_setup_from_templates(staging_dir, final_osg_location):
                 setup_in_fh.close()
         os.chmod(setup_path, mode)
         success()
-    #end for
+    # end for
 
 
 def write_setup_local_files(staging_dir):
@@ -98,13 +127,19 @@ def write_setup_local_files(staging_dir):
             try:
                 print_nonl("Creating %r" % setup_local_file)
                 setup_local_fh = open(setup_local_path, 'w')
-                setup_local_fh.write("""\
+                setup_local_fh.write(
+                    """\
 # This file is for local environment customizations. It is sourced at the end
 # of setup.%s and will not be overwritten by future runs of %s.
-""" % (shell, SCRIPT_NAME))
+"""
+                    % (shell, SCRIPT_NAME)
+                )
                 setup_local_fh.close()
             except EnvironmentError as err:
-                failure("Unable to write local environment setup file for the following reason:\n%s" % err)
+                failure(
+                    "Unable to write local environment setup file for the following reason:\n%s"
+                    % err
+                )
             finally:
                 if setup_local_fh:
                     setup_local_fh.close()
@@ -161,7 +196,9 @@ def fix_osg_location_in_fetch_crl(staging_dir, final_osg_location):
             fix_osg_location_in_file(in_path, final_osg_location)
         success()
     except EnvironmentError as err:
-        failure("Unable to fix fetch-crl config file(s) for the following reason:\n%s" % err)
+        failure(
+            "Unable to fix fetch-crl config file(s) for the following reason:\n%s" % err
+        )
 
 
 def fix_osg_location_in_sysconfig_bestman2(staging_dir, final_osg_location):
@@ -179,13 +216,13 @@ def fix_osg_location_in_sysconfig_bestman2(staging_dir, final_osg_location):
         fix_osg_location_in_file(sysconfig_path, final_osg_location)
         success()
     except EnvironmentError as err:
-        failure("Unable to fix BeSTMan2 sysconfig file for the following reason:\n%s" % err)
+        failure(
+            "Unable to fix BeSTMan2 sysconfig file for the following reason:\n%s" % err
+        )
 
 
 def check_required_binaries(staging_dir):
-    """Make sure we have all the prerequisites for running the tarball install.
-
-    """
+    """Make sure we have all the prerequisites for running the tarball install."""
     print_nonl("Checking for required binaries...")
     if os.path.exists(os.path.join(staging_dir, "usr/sbin/fetch-crl")):
         # We need perl for fetch-crl
@@ -197,7 +234,8 @@ def check_required_binaries(staging_dir):
 
 
 def parse_cmdline_args(argv):
-    parser = OptionParser("""
+    parser = OptionParser(
+        """
     %%prog [<STAGING_DIR>] [--final-osg-location=<DIR>]
 
 If STAGING_DIR is not specified on the command line, then the parent
@@ -213,10 +251,17 @@ is the directory the installation will run from. (That is, OSG_LOCATION is the
 same as STAGING_DIR). If this is not the case, for example if you're extracting
 the tarball into a staging area before pushing it out to a network share, then
 you must specify the --final-osg-location argument.
-""" % (SCRIPT_PARENT_DIR))
+"""
+        % (SCRIPT_PARENT_DIR)
+    )
 
-    parser.add_option("-f", "--final-osg-location", default=None, help="The final location that the software will "
-                      "be run from. If not specified, the staging dir will be used.")
+    parser.add_option(
+        "-f",
+        "--final-osg-location",
+        default=None,
+        help="The final location that the software will "
+        "be run from. If not specified, the staging dir will be used.",
+    )
 
     options, args = parser.parse_args(argv[1:])
 
@@ -265,7 +310,9 @@ def main(argv):
         print("Final OSG_LOCATION specified as %r" % (options.final_osg_location))
         final_osg_location = options.final_osg_location
     else:
-        print("Final OSG_LOCATION not specified. Using staging dir (%r)." % (staging_dir))
+        print(
+            "Final OSG_LOCATION not specified. Using staging dir (%r)." % (staging_dir)
+        )
         final_osg_location = staging_dir
 
     write_setup_from_templates(staging_dir, final_osg_location)
@@ -274,6 +321,6 @@ def main(argv):
     fix_osg_location_in_sysconfig_bestman2(staging_dir, final_osg_location)
     return 0
 
+
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
-

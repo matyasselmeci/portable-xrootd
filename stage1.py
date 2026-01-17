@@ -13,27 +13,29 @@ tarballs, but will not be included in the tarballs.
 import glob
 import grp
 import os
-from os.path import join as opj
 import pipes
 import shlex
 import shutil
 import stat
 import subprocess
 import sys
+from os.path import join as opj
 
-
-import yumconf
 import common
-from common import statusmsg, errormsg, safe_makedirs, Error
+import yumconf
+from common import Error, errormsg, safe_makedirs, statusmsg
 
 # Character devices to put in /dev in the chroot.  Fields are:
 # name, major, minor, group, perms
-DEVICES = [('core', 1, 6, 'root', 0o600),
-           ('mem',  1, 1, 'kmem', 0o640),
-           ('null', 1, 3, 'root', 0o666),
-           ('port', 1, 4, 'kmem', 0o640),
-           ('zero', 1, 5, 'root', 0o666),
-           ('urandom', 1, 9, 'root', 0o666)]
+DEVICES = [
+    ('core', 1, 6, 'root', 0o600),
+    ('mem', 1, 1, 'kmem', 0o640),
+    ('null', 1, 3, 'root', 0o666),
+    ('port', 1, 4, 'kmem', 0o640),
+    ('zero', 1, 5, 'root', 0o666),
+    ('urandom', 1, 9, 'root', 0o666),
+]
+
 
 def make_stage1_root_dir(stage1_root):
     """Make or empty a directory to be used for building the stage1.
@@ -44,10 +46,16 @@ def make_stage1_root_dir(stage1_root):
         raise Error("You may not use '/' as the output directory")
     try:
         if os.path.isdir(stage1_root):
-            print("Stage 1 directory (%r) already exists. Reuse it? Note that the contents will be emptied! " % stage1_root)
+            print(
+                "Stage 1 directory (%r) already exists. Reuse it? Note that the contents will be emptied! "
+                % stage1_root
+            )
             user_choice = input("[y/n] ? ").strip().lower()
             if not user_choice.startswith('y'):
-                raise Error("Not overwriting %r. Remove it or pass a different directory" % stage1_root)
+                raise Error(
+                    "Not overwriting %r. Remove it or pass a different directory"
+                    % stage1_root
+                )
             shutil.rmtree(stage1_root)
         os.makedirs(stage1_root)
     except OSError as err:
@@ -58,7 +66,10 @@ def init_stage1_rpmdb(stage1_root):
     """Create an rpmdb"""
     err = subprocess.call(["rpm", "--initdb", "--root", stage1_root])
     if err:
-        raise Error("Could not initialize rpmdb into %r (rpm process returned %d)" % (stage1_root, err))
+        raise Error(
+            "Could not initialize rpmdb into %r (rpm process returned %d)"
+            % (stage1_root, err)
+        )
 
 
 def init_stage1_devices(stage1_root):
@@ -82,14 +93,20 @@ def get_stage1_packages(pkglist_file):
 def _install_stage1_packages(yum, dver, stage1_root, stage1_packages):
     def yuminstall(packages):
         yum.install(installroot=stage1_root, packages=packages)
+
     def yumforceinstall(packages, **kwargs):
         yum.force_install(installroot=stage1_root, packages=packages, **kwargs)
+
     def yumforceerase(packages):
         yum.force_erase(installroot=stage1_root, packages=packages)
 
     yum.yum_clean()
     yumforceinstall(['filesystem'], noscripts=True)
-    yumforceinstall(['bash', 'grep', 'info', 'findutils', 'libacl', 'libattr'], noscripts=True, resolve=True)
+    yumforceinstall(
+        ['bash', 'grep', 'info', 'findutils', 'libacl', 'libattr'],
+        noscripts=True,
+        resolve=True,
+    )
     yumforceinstall(['coreutils'], noscripts=True)
     if dver == 'el6':
         yumforceinstall(['coreutils-libs', 'pam', 'ncurses', 'gmp'], resolve=True)
@@ -112,13 +129,15 @@ def install_stage1_packages(stage1_root, repofile, dver, basearch, pkglist_file)
 
 def make_stage1_filelist(stage_dir, pkglist_file):
     oldwd = os.getcwd()
-    includes_file = pkglist_file.replace('.lst','-include.lst')
+    includes_file = pkglist_file.replace('.lst', '-include.lst')
     if not os.path.exists(includes_file):
         includes_file = '/dev/null'
     try:
         os.chdir(stage_dir)
         os.system('find . -not -type d | sort > stage1_filelist_tmp')
-        os.system('comm -2 -3 stage1_filelist_tmp ' + includes_file + ' > stage1_filelist')
+        os.system(
+            'comm -2 -3 stage1_filelist_tmp ' + includes_file + ' > stage1_filelist'
+        )
 
     finally:
         os.chdir(oldwd)

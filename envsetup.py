@@ -18,26 +18,24 @@ Constructs that have arguments are lambdas; those that do not are strings.
 import os
 import sys
 
-
 shell_construct = {
     'csh': {
-        'setenv'     : (lambda var,value : f'setenv {var} "{value}"\n'),
-        'ifdef'      : (lambda var       : 'if ($?%s) then\n' % var),
-        'ifreadable' : (lambda fname     : 'if -r "%s" then\n' % fname),
-        'else'       : 'else\n',
-        'endif'      : 'endif\n',
-        'source'     : (lambda fname     : 'source "%s"\n' % (fname)),
+        'setenv': (lambda var, value: f'setenv {var} "{value}"\n'),
+        'ifdef': (lambda var: 'if ($?%s) then\n' % var),
+        'ifreadable': (lambda fname: 'if -r "%s" then\n' % fname),
+        'else': 'else\n',
+        'endif': 'endif\n',
+        'source': (lambda fname: 'source "%s"\n' % (fname)),
     },
     'sh': {
-        'setenv'     : (lambda var,value : f'export {var}="{value}"\n'),
-        'ifdef'      : (lambda var       : 'if [ "X" != "X${%s-}" ]; then\n' % var),
-        'ifreadable' : (lambda fname     : 'if [ -r "%s" ]; then\n' % fname),
-        'else'       : 'else\n',
-        'endif'      : 'fi\n',
-        'source'     : (lambda fname     : '. "%s"\n' % (fname)),
-    }
+        'setenv': (lambda var, value: f'export {var}="{value}"\n'),
+        'ifdef': (lambda var: 'if [ "X" != "X${%s-}" ]; then\n' % var),
+        'ifreadable': (lambda fname: 'if [ -r "%s" ]; then\n' % fname),
+        'else': 'else\n',
+        'endif': 'fi\n',
+        'source': (lambda fname: '. "%s"\n' % (fname)),
+    },
 }
-
 
 
 def write_setup_in_files(dest_dir, dver, basearch):
@@ -47,20 +45,26 @@ def write_setup_in_files(dest_dir, dver, basearch):
     '''
 
     if basearch == 'x86_64':
-        osg_ld_library_path = ":".join([
-            "$OSG_LOCATION/lib64",
-            "$OSG_LOCATION/lib",     # search 32-bit libs too
-            "$OSG_LOCATION/usr/lib64",
-            "$OSG_LOCATION/usr/lib", # search 32-bit libs too
-            "$OSG_LOCATION/usr/lib64/dcap",
-            "$OSG_LOCATION/usr/lib64/lcgdm"])
+        osg_ld_library_path = ":".join(
+            [
+                "$OSG_LOCATION/lib64",
+                "$OSG_LOCATION/lib",  # search 32-bit libs too
+                "$OSG_LOCATION/usr/lib64",
+                "$OSG_LOCATION/usr/lib",  # search 32-bit libs too
+                "$OSG_LOCATION/usr/lib64/dcap",
+                "$OSG_LOCATION/usr/lib64/lcgdm",
+            ]
+        )
     else:
         raise Exception("Unknown basearch %r" % basearch)
 
     if dver in ['el6', 'el7', 'el8', 'el9', 'el10']:
-        osg_perl5lib = ":".join([
-            "$OSG_LOCATION/usr/share/perl5/vendor_perl",
-            "$OSG_LOCATION/usr/share/perl5"])
+        osg_perl5lib = ":".join(
+            [
+                "$OSG_LOCATION/usr/share/perl5/vendor_perl",
+                "$OSG_LOCATION/usr/share/perl5",
+            ]
+        )
         if basearch == 'x86_64':
             osg_perl5lib += ":$OSG_LOCATION/usr/lib64/perl5/vendor_perl"
             osg_perl5lib += ":$OSG_LOCATION/usr/lib64/perl5"
@@ -93,55 +97,69 @@ def write_setup_in_files(dest_dir, dver, basearch):
 
     osg_manpath = "$OSG_LOCATION/usr/share/man"
 
-
     for sh in 'csh', 'sh':
         dest_path = os.path.join(dest_dir, 'setup.%s.in' % sh)
-        text_to_write = "# Source this file if using %s or a shell derived from it\n" % sh
+        text_to_write = (
+            "# Source this file if using %s or a shell derived from it\n" % sh
+        )
         setup_local = "$OSG_LOCATION/setup-local.%s" % sh
 
-        _setenv     = shell_construct[sh]['setenv']
-        _ifdef      = shell_construct[sh]['ifdef']
-        _else       = shell_construct[sh]['else']
-        _endif      = shell_construct[sh]['endif']
+        _setenv = shell_construct[sh]['setenv']
+        _ifdef = shell_construct[sh]['ifdef']
+        _else = shell_construct[sh]['else']
+        _endif = shell_construct[sh]['endif']
         _ifreadable = shell_construct[sh]['ifreadable']
-        _source     = shell_construct[sh]['source']
+        _source = shell_construct[sh]['source']
 
         # Set OSG_LOCATION first because all the other variables depend on it
         text_to_write += _setenv("OSG_LOCATION", "@@OSG_LOCATION@@")
 
         for variable, value in [
-                ("GFAL_CONFIG_DIR", "$OSG_LOCATION/etc/gfal2.d/"),
-                ("GFAL_PLUGIN_DIR", "$OSG_LOCATION/usr/lib64/gfal2-plugins/" if basearch == "x86_64"
-                                    else "$OSG_LOCATION/usr/lib/gfal2-plugins/"),
-                ("GLOBUS_LOCATION", "$OSG_LOCATION/usr"),
-                ("PATH",            "$OSG_LOCATION/usr/bin:$OSG_LOCATION/usr/sbin:$PATH"),
-                ("X509_CERT_DIR",   "$OSG_LOCATION/etc/grid-security/certificates"),
-                ("X509_VOMS_DIR",   "$OSG_LOCATION/etc/grid-security/vomsdir"),
-                ("VOMS_USERCONF",   "$OSG_LOCATION/etc/vomses")]:
+            ("GFAL_CONFIG_DIR", "$OSG_LOCATION/etc/gfal2.d/"),
+            (
+                "GFAL_PLUGIN_DIR",
+                (
+                    "$OSG_LOCATION/usr/lib64/gfal2-plugins/"
+                    if basearch == "x86_64"
+                    else "$OSG_LOCATION/usr/lib/gfal2-plugins/"
+                ),
+            ),
+            ("GLOBUS_LOCATION", "$OSG_LOCATION/usr"),
+            ("PATH", "$OSG_LOCATION/usr/bin:$OSG_LOCATION/usr/sbin:$PATH"),
+            ("X509_CERT_DIR", "$OSG_LOCATION/etc/grid-security/certificates"),
+            ("X509_VOMS_DIR", "$OSG_LOCATION/etc/grid-security/vomsdir"),
+            ("VOMS_USERCONF", "$OSG_LOCATION/etc/vomses"),
+        ]:
 
             text_to_write += _setenv(variable, value)
 
         for variable, value in [
-                ("LD_LIBRARY_PATH", osg_ld_library_path),
-                ("PERL5LIB",        osg_perl5lib),
-                ("PYTHONPATH",      osg_pythonpath),
-                ("MANPATH",         osg_manpath)]:
+            ("LD_LIBRARY_PATH", osg_ld_library_path),
+            ("PERL5LIB", osg_perl5lib),
+            ("PYTHONPATH", osg_pythonpath),
+            ("MANPATH", osg_manpath),
+        ]:
 
             text_to_write += (
-                 _ifdef(variable)
-               + "\t" + _setenv(variable, value + ":$" + variable)
-               + _else
-               + "\t" + _setenv(variable, value)
-               + _endif
-               + "\n")
+                _ifdef(variable)
+                + "\t"
+                + _setenv(variable, value + ":$" + variable)
+                + _else
+                + "\t"
+                + _setenv(variable, value)
+                + _endif
+                + "\n"
+            )
 
         text_to_write += (
-              "\n"
+            "\n"
             + "# Site-specific customizations\n"
             + _ifreadable(setup_local)
-            + "\t" + _source(setup_local)
+            + "\t"
+            + _source(setup_local)
             + _endif
-            + "\n")
+            + "\n"
+        )
 
         with open(dest_path, "w") as fh:
             fh.write(text_to_write)
@@ -151,6 +169,6 @@ def main(argv):
     dest_dir, dver, basearch = argv[1:4]
     write_setup_in_files(dest_dir, dver, basearch)
 
+
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
-

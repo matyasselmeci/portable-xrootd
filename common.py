@@ -4,7 +4,9 @@ import subprocess
 import sys
 
 
-class Error(Exception): pass
+class Error(Exception):
+    pass
+
 
 def statusmsg(*args):
     if sys.stdout.isatty():
@@ -66,9 +68,8 @@ class MountProcFS:
         subprocess.call(['umount', self.proc_dir])
 
 
-VALID_DVERS        = ["el8", "el9", "el10"]
-VALID_BASEARCHES   = ["x86_64"]
-DEFAULT_BASEARCH   = "x86_64"
+VALID_DVERS = ["el8", "el9", "el10"]
+VALID_BASEARCHES = ["x86_64"]
+DEFAULT_BASEARCH = "x86_64"
 
 assert DEFAULT_BASEARCH in VALID_BASEARCHES
-
