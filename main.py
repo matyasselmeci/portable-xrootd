@@ -13,9 +13,8 @@ if __name__ == "__main__" and __package__ is None:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
-import stage1
-import stage2
-import yumconf
+# import stage1
+# import stage2
 from common import (
     DEFAULT_BASEARCH,
     VALID_BASEARCHES,
@@ -24,35 +23,18 @@ from common import (
     statusmsg,
     to_str,
 )
+import docker
 
 BUNDLES_FILE = 'bundles.ini'
 
 
-def check_running_as_root():
-    if os.getuid() != 0:
-        errormsg("Error: You need to be root to run this script")
-        return False
-    return True
-
-
 def check_tools():
     ret = True
-    for tool in ["patch", "find", "tar", "rpm", "yum", "yumdownloader"]:
+    for tool in ["docker", "tar"]:
         if not shutil.which(tool):
             errormsg("Required executable '%s' not found" % tool)
             ret = False
     return ret
-
-
-def check_yum_priorities():
-    ret = subprocess.call(['rpm', '-q', 'dnf'])
-    if ret == 0:  # dnf doesn't need yum-priorities
-        return True
-    ret = subprocess.call(['rpm', '--whatprovides', '-q', 'yum-priorities'])
-    if ret != 0:
-        errormsg("Error: nothing is providing yum-priorities")
-        return False
-    return True
 
 
 def get_repofile(prog_dir, bundlecfg, bundle, basearch, dver):
@@ -209,10 +191,6 @@ or: %prog [options] --version=<version> --all
         else:
             options.osgver = None
 
-    if options.prerelease:
-        options.extra_repos = options.extra_repos or []
-        options.extra_repos.append('osg-prerelease-for-tarball')
-
     return (options, args)
 
 
@@ -222,14 +200,8 @@ def main(argv):
 
     options, args = parse_cmdline_args(argv)
 
-    statusmsg("Checking privileges")
-    if not check_running_as_root():
-        return 1
     statusmsg("Checking required tools")
     if not check_tools():
-        return 1
-    statusmsg("Checking yum-priorities")
-    if not check_yum_priorities():
         return 1
 
     bundlecfg = configparser.ConfigParser()
