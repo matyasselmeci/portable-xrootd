@@ -44,56 +44,30 @@ def write_setup_in_files(dest_dir, dver, basearch):
 
     '''
 
-    if basearch == 'x86_64':
-        osg_ld_library_path = ":".join(
-            [
-                "$OSG_LOCATION/lib64",
-                "$OSG_LOCATION/lib",  # search 32-bit libs too
-                "$OSG_LOCATION/usr/lib64",
-                "$OSG_LOCATION/usr/lib",  # search 32-bit libs too
-                "$OSG_LOCATION/usr/lib64/dcap",
-                "$OSG_LOCATION/usr/lib64/lcgdm",
-            ]
-        )
-    else:
-        raise Exception("Unknown basearch %r" % basearch)
+    osg_ld_library_path = ":".join(
+        [
+            "$OSG_LOCATION/usr/lib64",
+            "$OSG_LOCATION/usr/lib",  # search 32-bit libs too
+        ]
+    )
 
-    if dver in ['el6', 'el7', 'el8', 'el9', 'el10']:
-        osg_perl5lib = ":".join(
-            [
-                "$OSG_LOCATION/usr/share/perl5/vendor_perl",
-                "$OSG_LOCATION/usr/share/perl5",
-            ]
-        )
-        if basearch == 'x86_64':
-            osg_perl5lib += ":$OSG_LOCATION/usr/lib64/perl5/vendor_perl"
-            osg_perl5lib += ":$OSG_LOCATION/usr/lib64/perl5"
-    else:
-        raise Exception("Unknown dver %r" % dver)
-
-    # Arch-independent python stuff always goes in usr/lib/, even on x86_64
-    if dver == 'el6':
-        osg_pythonpath = "$OSG_LOCATION/usr/lib/python2.6/site-packages"
-        if basearch == 'x86_64':
-            osg_pythonpath += ":$OSG_LOCATION/usr/lib64/python2.6/site-packages"
-    elif dver == 'el7':
-        osg_pythonpath = "$OSG_LOCATION/usr/lib/python2.7/site-packages"
-        if basearch == 'x86_64':
-            osg_pythonpath += ":$OSG_LOCATION/usr/lib64/python2.7/site-packages"
-    elif dver == 'el8':
-        osg_pythonpath = "$OSG_LOCATION/usr/lib/python3.6/site-packages"
-        if basearch == 'x86_64':
-            osg_pythonpath += ":$OSG_LOCATION/usr/lib64/python3.6/site-packages"
-    elif dver == 'el9':
-        osg_pythonpath = "$OSG_LOCATION/usr/lib/python3.9/site-packages"
-        if basearch == 'x86_64':
-            osg_pythonpath += ":$OSG_LOCATION/usr/lib64/python3.9/site-packages"
-    elif dver == 'el10':
-        osg_pythonpath = "$OSG_LOCATION/usr/lib/python3.12/site-packages"
-        if basearch == 'x86_64':
-            osg_pythonpath += ":$OSG_LOCATION/usr/lib64/python3.12/site-packages"
-    else:
-        raise Exception("Unknown dver %r" % dver)
+    ## Pelican currently doesn't depend on any Python packages, so let's skip this part.
+    #
+    # # Arch-independent python stuff always goes in usr/lib/, even on x86_64
+    # if dver == 'el8':
+    #     osg_pythonpath = "$OSG_LOCATION/usr/lib/python3.6/site-packages"
+    #     if basearch == 'x86_64':
+    #         osg_pythonpath += ":$OSG_LOCATION/usr/lib64/python3.6/site-packages"
+    # elif dver == 'el9':
+    #     osg_pythonpath = "$OSG_LOCATION/usr/lib/python3.9/site-packages"
+    #     if basearch == 'x86_64':
+    #         osg_pythonpath += ":$OSG_LOCATION/usr/lib64/python3.9/site-packages"
+    # elif dver == 'el10':
+    #     osg_pythonpath = "$OSG_LOCATION/usr/lib/python3.12/site-packages"
+    #     if basearch == 'x86_64':
+    #         osg_pythonpath += ":$OSG_LOCATION/usr/lib64/python3.12/site-packages"
+    # else:
+    #     raise Exception("Unknown dver %r" % dver)
 
     osg_manpath = "$OSG_LOCATION/usr/share/man"
 
@@ -115,28 +89,13 @@ def write_setup_in_files(dest_dir, dver, basearch):
         text_to_write += _setenv("OSG_LOCATION", "@@OSG_LOCATION@@")
 
         for variable, value in [
-            ("GFAL_CONFIG_DIR", "$OSG_LOCATION/etc/gfal2.d/"),
-            (
-                "GFAL_PLUGIN_DIR",
-                (
-                    "$OSG_LOCATION/usr/lib64/gfal2-plugins/"
-                    if basearch == "x86_64"
-                    else "$OSG_LOCATION/usr/lib/gfal2-plugins/"
-                ),
-            ),
-            ("GLOBUS_LOCATION", "$OSG_LOCATION/usr"),
             ("PATH", "$OSG_LOCATION/usr/bin:$OSG_LOCATION/usr/sbin:$PATH"),
-            ("X509_CERT_DIR", "$OSG_LOCATION/etc/grid-security/certificates"),
-            ("X509_VOMS_DIR", "$OSG_LOCATION/etc/grid-security/vomsdir"),
-            ("VOMS_USERCONF", "$OSG_LOCATION/etc/vomses"),
         ]:
-
             text_to_write += _setenv(variable, value)
 
         for variable, value in [
             ("LD_LIBRARY_PATH", osg_ld_library_path),
-            ("PERL5LIB", osg_perl5lib),
-            ("PYTHONPATH", osg_pythonpath),
+            # ("PYTHONPATH", osg_pythonpath),
             ("MANPATH", osg_manpath),
         ]:
 

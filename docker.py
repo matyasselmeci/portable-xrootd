@@ -26,6 +26,10 @@ DOCKERFILE_TEMPLATE = r"""
 FROM {fromimage} AS {fromstagename}
 COPY {stage1file} /stage1.lst
 COPY stage1/paths-to-delete.txt /paths-to-delete.txt
+COPY envsetup.py /envsetup.py
+RUN mkdir /portable-xrootd
+# Files we want to keep need to be touched later.
+COPY post-install/* /portable-xrootd/
 RUN grep '^[@A-Za-z0-9]' /stage1.lst | xargs yum install --allowerasing --setopt install_weak_deps=false -y
 
 FROM {fromstagename} AS {basename}
@@ -38,7 +42,9 @@ RUN \
     yum install -y {packages} \
     && yum clean all \
     && rpm -qa | sort > /rpm-versions.txt \
-    && xargs -d '\n' -a /paths-to-delete.txt rm -rf
+    && xargs -d '\n' -a /paths-to-delete.txt rm -rf \
+    && python3 /envsetup.py /portable-xrootd {dver} {basearch} \
+    && touch /portable-xrootd/*
 """
 
 
@@ -69,10 +75,11 @@ class Docker:
 
 
 def render_dockerfile(
-    bundlecfg: Mapping[str, Mapping[str, Any]], bundle: str, dver: str
+    bundlecfg: Mapping[str, Mapping[str, Any]], bundle: str, dver: str, basearch: str
 ):
     values = dict()
     values.update(VALUES_DVER[dver])
+    values["basearch"] = basearch
     values["bundle"] = bundle
     values["dver"] = dver
     values["stage1file"] = os.path.join(

@@ -1,11 +1,6 @@
-from __future__ import print_function
-
-import glob
 import os
 import re
-import shutil
 import sys
-import tempfile
 from optparse import OptionParser
 
 SCRIPT_NAME = os.path.basename(sys.argv[0])
@@ -146,93 +141,6 @@ def write_setup_local_files(staging_dir):
             success()
 
 
-def fix_osg_location_in_file(file_path, osg_location):
-    """Given a path to a file, replace the string @@OSG_LOCATION@@ in the
-    file with the path to the directory the software will be run from (the
-    final OSG_LOCATION).
-    This is basically a sed one-liner written in 20 lines of Python.
-
-    """
-    tmp_fh = tmp_path = file_fh = None
-    try:
-        # mkstemp returns a file descriptor instead of a file object
-        _tmp_fd, tmp_path = tempfile.mkstemp()
-        tmp_fh = os.fdopen(_tmp_fd, 'wb')
-        file_mode = os.stat(file_path).st_mode
-        file_fh = open(file_path, 'rb')
-        for file_line in file_fh:
-            tmp_fh.write(re.sub(b'@@OSG_LOCATION@@', osg_location.encode(), file_line))
-        tmp_fh.close()
-        shutil.copy(file_path, file_path + ".bak")
-        shutil.move(tmp_path, file_path)
-        os.chmod(file_path, file_mode)
-    finally:
-        if tmp_fh:
-            tmp_fh.close()
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
-        if file_fh:
-            file_fh.close()
-
-
-def fix_osg_location_in_fetch_crl(staging_dir, final_osg_location):
-    """Write the final OSG_LOCATION directory into the fetch-crl config
-    files under the staging dir.
-
-    """
-    abs_staging_dir = os.path.abspath(staging_dir)
-    etc = os.path.join(abs_staging_dir, 'etc')
-
-    confs = glob.glob(os.path.join(etc, "fetch-crl.conf"))
-    if not confs:
-        return
-
-    print_nonl("Updating fetch-crl config file(s)")
-    # dereference symlinks
-    confs_real = set([os.path.realpath(x) for x in confs])
-    try:
-        # fix each file only once
-        for in_path in confs_real:
-            fix_osg_location_in_file(in_path, final_osg_location)
-        success()
-    except EnvironmentError as err:
-        failure(
-            "Unable to fix fetch-crl config file(s) for the following reason:\n%s" % err
-        )
-
-
-def fix_osg_location_in_sysconfig_bestman2(staging_dir, final_osg_location):
-    """Write the final OSG_LOCATION directory into the sysconfig file
-    for bestman2 under the staging dir.
-
-    """
-    sysconfig_path = os.path.join(staging_dir, 'etc/sysconfig/bestman2')
-    if not os.path.exists(sysconfig_path):
-        return
-
-    print_nonl("Updating BeSTMan2 sysconfig file")
-
-    try:
-        fix_osg_location_in_file(sysconfig_path, final_osg_location)
-        success()
-    except EnvironmentError as err:
-        failure(
-            "Unable to fix BeSTMan2 sysconfig file for the following reason:\n%s" % err
-        )
-
-
-def check_required_binaries(staging_dir):
-    """Make sure we have all the prerequisites for running the tarball install."""
-    print_nonl("Checking for required binaries...")
-    if os.path.exists(os.path.join(staging_dir, "usr/sbin/fetch-crl")):
-        # We need perl for fetch-crl
-        if not os.path.exists("/usr/bin/perl"):
-            failure("/usr/bin/perl not found (run \"yum install perl\" to install)")
-            return False
-    success()
-    return True
-
-
 def parse_cmdline_args(argv):
     parser = OptionParser(
         """
@@ -302,10 +210,6 @@ def main(argv):
         print("No valid staging directory found.")
         return 2
 
-    if not check_required_binaries(staging_dir):
-        print("Required binaries not installed. Please install them.")
-        return 1
-
     if options.final_osg_location:
         print("Final OSG_LOCATION specified as %r" % (options.final_osg_location))
         final_osg_location = options.final_osg_location
@@ -317,8 +221,6 @@ def main(argv):
 
     write_setup_from_templates(staging_dir, final_osg_location)
     write_setup_local_files(staging_dir)
-    fix_osg_location_in_fetch_crl(staging_dir, final_osg_location)
-    fix_osg_location_in_sysconfig_bestman2(staging_dir, final_osg_location)
     return 0
 
 
