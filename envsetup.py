@@ -38,7 +38,7 @@ shell_construct = {
 }
 
 
-def write_setup_in_files(dest_dir, dver, basearch):
+def write_setup_in_files(dest_dir, dver):
     '''Writes dest_dir/setup.csh.in and dest_dir/setup.sh.in according to the
     dver and basearch provided.
 
@@ -56,16 +56,13 @@ def write_setup_in_files(dest_dir, dver, basearch):
     # # Arch-independent python stuff always goes in usr/lib/, even on x86_64
     # if dver == 'el8':
     #     local_pythonpath = "$XROOTD_LOCATION/usr/lib/python3.6/site-packages"
-    #     if basearch == 'x86_64':
-    #         local_pythonpath += ":$XROOTD_LOCATION/usr/lib64/python3.6/site-packages"
+    #     local_pythonpath += ":$XROOTD_LOCATION/usr/lib64/python3.6/site-packages"
     # elif dver == 'el9':
     #     local_pythonpath = "$XROOTD_LOCATION/usr/lib/python3.9/site-packages"
-    #     if basearch == 'x86_64':
-    #         local_pythonpath += ":$XROOTD_LOCATION/usr/lib64/python3.9/site-packages"
+    #     local_pythonpath += ":$XROOTD_LOCATION/usr/lib64/python3.9/site-packages"
     # elif dver == 'el10':
     #     local_pythonpath = "$XROOTD_LOCATION/usr/lib/python3.12/site-packages"
-    #     if basearch == 'x86_64':
-    #         local_pythonpath += ":$XROOTD_LOCATION/usr/lib64/python3.12/site-packages"
+    #     local_pythonpath += ":$XROOTD_LOCATION/usr/lib64/python3.12/site-packages"
     # else:
     #     raise Exception("Unknown dver %r" % dver)
 
@@ -125,8 +122,8 @@ def write_setup_in_files(dest_dir, dver, basearch):
 
 
 def main(argv):
-    dest_dir, dver, basearch = argv[1:4]
-    write_setup_in_files(dest_dir, dver, basearch)
+    dest_dir, dver = argv[1:4]
+    write_setup_in_files(dest_dir, dver)
 
 
 if __name__ == '__main__':

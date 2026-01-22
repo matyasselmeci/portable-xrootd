@@ -132,10 +132,9 @@ def make_stage2_tarball(
     stage_dir: Pathable,
     patch_dirs: list[str],
     dver: str,
-    basearch: str,
 ):
     def statusmsg(msg: Any):
-        common.statusmsg(f"[{dver},{basearch}]: {msg}")
+        common.statusmsg(f"[{dver}]: {msg}")
 
     statusmsg(f"Making stage2 tarball in {stage_dir}")
 

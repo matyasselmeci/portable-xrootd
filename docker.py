@@ -42,7 +42,7 @@ RUN \
     && yum clean all \
     && rpm -q {packages} | sort > /portable-xrootd/versions.txt \
     && xargs -d '\n' -a /paths-to-delete.txt rm -rf \
-    && python3 /envsetup.py /portable-xrootd {dver} {basearch} \
+    && python3 /envsetup.py /portable-xrootd {dver} \
     && touch /portable-xrootd/*
 """
 
@@ -77,12 +77,10 @@ def render_dockerfile(
     bundlecfg: Mapping[str, Mapping[str, Any]],
     bundle: str,
     dver: str,
-    basearch: str,
     flags: Sequence[str] = (),
 ):
     values = dict()
     values.update(VALUES_DVER[dver])
-    values["basearch"] = basearch
     values["bundle"] = bundle
     values["dver"] = dver
     values["stage1file"] = os.path.join(

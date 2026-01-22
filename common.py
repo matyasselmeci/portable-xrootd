@@ -86,5 +86,3 @@ class MountProcFS:
 
 
 VALID_DVERS = ["el8", "el9", "el10"]
-VALID_BASEARCHES = ["x86_64", "aarch64"]
-DEFAULT_BASEARCH = VALID_BASEARCHES[0]

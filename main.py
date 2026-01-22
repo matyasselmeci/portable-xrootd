@@ -17,8 +17,6 @@ if __name__ == "__main__" and __package__ is None:
 import docker
 import stage2
 from common import (
-    DEFAULT_BASEARCH,
-    VALID_BASEARCHES,
     VALID_DVERS,
     Error,
     errormsg,
@@ -43,7 +41,6 @@ def make_tarball(
     *,
     bundlecfg: configparser.RawConfigParser,
     bundle: str,
-    basearch: str,
     dver: str,
     image_name: str,
     patch_dirs,
@@ -66,7 +63,6 @@ def make_tarball(
         bundlecfg=bundlecfg,
         bundle=bundle,
         dver=dver,
-        basearch=basearch,
         flags=flags,
     )
     try:
@@ -102,7 +98,6 @@ def make_tarball(
         stage_dir=stage_dir,
         patch_dirs=patch_dirs,
         dver=dver,
-        basearch=basearch,
     ):
         errormsg(
             f"Making stage 2 tarball unsuccessful. "
@@ -123,7 +118,7 @@ def make_tarball(
 def parse_cmdline_args(argv):
     parser = OptionParser(
         """
-    %prog [options] --bundle=<bundle> --dver=<dver> [--basearch=<basearch>]
+    %prog [options] --bundle=<bundle> --dver=<dver>
 or: %prog [options] --bundle=<bundle> --all
 """
     )
@@ -144,19 +139,11 @@ or: %prog [options] --bundle=<bundle> --all
         + ")",
     )
     parser.add_option(
-        "-b",
-        "--basearch",
-        help="Build tarball for this base architecture. Must be one of ("
-        + ", ".join(VALID_BASEARCHES)
-        + "). Default is %default.",
-        default=DEFAULT_BASEARCH,
-    )
-    parser.add_option(
         "-a",
         "--all",
         default=False,
         action="store_true",
-        help="Build tarballs for all dver,basearch combinations.",
+        help="Build tarballs for all distro versions.",
     )
     parser.add_option(
         "--bundle",
@@ -176,8 +163,6 @@ or: %prog [options] --bundle=<bundle> --all
 
     if options.dver and options.dver not in VALID_DVERS:
         parser.error("--dver must be in " + ", ".join(VALID_DVERS))
-    if options.basearch and options.basearch not in VALID_BASEARCHES:
-        parser.error("--basearch must be in " + ", ".join(VALID_BASEARCHES))
     if not options.all and not options.dver:
         parser.error("Either --all or --dver must be specified.")
 
@@ -215,14 +200,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     written_tarballs = []
     for bundle in bundles:
         if options.all:
-            paramsets = [
-                tuple(x.split(',')) for x in bundlecfg.get(bundle, 'paramsets').split()
-            ]
+            dvers = bundlecfg.get(bundle, 'dvers').split()
         else:
-            paramsets = [(options.dver, options.basearch)]
+            dvers = [options.dver]
 
-        for dver, basearch in paramsets:
-            stage_dir_parent = tempfile.mkdtemp(prefix=f'stagedir-{dver}-{basearch}-')
+        for dver in dvers:
+            stage_dir_parent = tempfile.mkdtemp(prefix=f'stagedir-{dver}-')
             stage_dir = Path(stage_dir_parent) / bundlecfg.get(bundle, 'dirname')
 
             image_name = (
@@ -238,15 +221,13 @@ def main(argv: Optional[list[str]] = None) -> int:
                 patch_dirs = [
                     os.path.join(prog_dir, x)
                     for x in (
-                        bundlecfg.get(bundle, 'patchdirs')
-                        % {'basearch': basearch, 'dver': dver}
+                        bundlecfg.get(bundle, 'patchdirs') % {'dver': dver}
                     ).split()
                 ]
 
             (success, tarball_path, tarball_size) = make_tarball(
                 bundlecfg=bundlecfg,
                 bundle=bundle,
-                basearch=basearch,
                 dver=dver,
                 image_name=image_name,
                 patch_dirs=patch_dirs,
@@ -271,12 +252,12 @@ def main(argv: Optional[list[str]] = None) -> int:
                     )
                 )
             else:
-                failed_paramsets.append([bundle, dver, basearch])
+                failed_paramsets.append([bundle, dver])
                 continue
 
             statusmsg("Removing temp dirs")
             shutil.rmtree(stage_dir_parent, ignore_errors=True)
-        # end for dver, basearch in paramsets
+        # end for dver in dvers
     # end for bundle in options.bundles
 
     if written_tarballs:
@@ -288,10 +269,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     if failed_paramsets:
         errormsg("The following sets of parameters failed:")
         for paramset in failed_paramsets:
-            print(
-                "    bundle: %-20s dver: %3s buildarch: %-6s"
-                % (paramset[0], paramset[1], paramset[2])
-            )
+            print("    bundle: %-20s dver: %3s" % (paramset[0], paramset[1]))
         return 1
 
     return 0
