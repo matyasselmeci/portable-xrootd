@@ -1,0 +1,27 @@
+#!/bin/sh
+#
+# tarball-run is a utility script for the portable tarball.  It allows you to
+# run a single command using the tarball environment. Users should copy or
+# symlink this into $HOME/bin or some location in their $PATH that they have
+# control over.
+#
+# Example use:
+#
+# tarball-run pelican-server cache serve
+#
+# You can also launch a shell, for example:
+# tarball-run /bin/bash
+# The shell will then have the tarball environment inside.
+#
+XROOTD_LOCATION="@@XROOTD_LOCATION@@"
+[ ! -d "$XROOTD_LOCATION" ] && {
+    echo "$XROOTD_LOCATION not found or not a directory"
+    exit 3
+}
+[ ! -r "$XROOTD_LOCATION/setup.sh" ] && {
+    echo "$XROOTD_LOCATION/setup.sh not found or not readable"
+    echo "You might need to run the \`post-install\` script."
+    exit 4
+}
+. "$XROOTD_LOCATION/setup.sh" && \
+    exec "$@"

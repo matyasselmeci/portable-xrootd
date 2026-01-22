@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import os
 import re
 import sys
@@ -50,12 +51,12 @@ def failure(message=""):
 
 
 def osg_files_dir(staging_dir):
-    return os.path.join(staging_dir, 'osg')
+    return os.path.join(staging_dir, 'portable-xrootd')
 
 
 def is_valid_staging_dir(staging_dir):
     ofd = osg_files_dir(staging_dir)
-    for osg_file in ['setup.sh.in', 'setup.csh.in', 'osgrun.in']:
+    for osg_file in ['setup.sh.in', 'setup.csh.in', 'tarball-run.in']:
         if not os.path.exists(os.path.join(ofd, osg_file)):
             return False
     return True
@@ -71,7 +72,7 @@ def write_setup_from_templates(staging_dir, final_osg_location):
         ('osgrun', 0o755),
     ):
         setup_in_file = setup_file + ".in"
-        setup_in_path = os.path.join(abs_staging_dir, "osg", setup_in_file)
+        setup_in_path = os.path.join(abs_staging_dir, "portable-xrootd", setup_in_file)
         setup_path = os.path.join(abs_staging_dir, setup_file)
 
         if not os.path.exists(setup_in_path):
@@ -95,7 +96,9 @@ def write_setup_from_templates(staging_dir, final_osg_location):
                     % (setup_in_path, SCRIPT_NAME, SCRIPT_NAME)
                 )
             for in_line in setup_in_fh:
-                setup_fh.write(re.sub(r'@@OSG_LOCATION@@', final_osg_location, in_line))
+                setup_fh.write(
+                    re.sub(r'@@XROOTD_LOCATION@@', final_osg_location, in_line)
+                )
         except EnvironmentError as err:
             failure(
                 "Unable to write environment setup file for the following reason:\n%s"
@@ -144,28 +147,27 @@ def write_setup_local_files(staging_dir):
 def parse_cmdline_args(argv):
     parser = OptionParser(
         """
-    %%prog [<STAGING_DIR>] [--final-osg-location=<DIR>]
+    %%prog [<STAGING_DIR>] [--final-location=<DIR>]
 
 If STAGING_DIR is not specified on the command line, then the parent
 directory of this script (%r) is used for STAGING_DIR.
 
 This script runs the post-extraction steps necessary to complete your install
 of the tarball client. This consists of creating environment files (such as
-setup.sh) and fixing the installation directory in configuration files (such
-as etc/fetch-crl.conf).
+setup.sh).
 
 By default the script assumes that the directory the tarball was extracted to
-is the directory the installation will run from. (That is, OSG_LOCATION is the
+is the directory the installation will run from. (That is, XROOTD_LOCATION is the
 same as STAGING_DIR). If this is not the case, for example if you're extracting
 the tarball into a staging area before pushing it out to a network share, then
-you must specify the --final-osg-location argument.
+you must specify the --final-location argument.
 """
         % (SCRIPT_PARENT_DIR)
     )
 
     parser.add_option(
         "-f",
-        "--final-osg-location",
+        "--final-location",
         default=None,
         help="The final location that the software will "
         "be run from. If not specified, the staging dir will be used.",
@@ -210,16 +212,17 @@ def main(argv):
         print("No valid staging directory found.")
         return 2
 
-    if options.final_osg_location:
-        print("Final OSG_LOCATION specified as %r" % (options.final_osg_location))
-        final_osg_location = options.final_osg_location
+    if options.final_location:
+        print("Final XROOTD_LOCATION specified as %r" % (options.final_osg_location))
+        final_location = options.final_osg_location
     else:
         print(
-            "Final OSG_LOCATION not specified. Using staging dir (%r)." % (staging_dir)
+            "Final XROOTD_LOCATION not specified. Using staging dir (%r)."
+            % (staging_dir)
         )
-        final_osg_location = staging_dir
+        final_location = staging_dir
 
-    write_setup_from_templates(staging_dir, final_osg_location)
+    write_setup_from_templates(staging_dir, final_location)
     write_setup_local_files(staging_dir)
     return 0
 

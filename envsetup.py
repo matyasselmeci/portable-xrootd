@@ -44,10 +44,10 @@ def write_setup_in_files(dest_dir, dver, basearch):
 
     '''
 
-    osg_ld_library_path = ":".join(
+    local_ld_library_path = ":".join(
         [
-            "$OSG_LOCATION/usr/lib64",
-            "$OSG_LOCATION/usr/lib",  # search 32-bit libs too
+            "$XROOTD_LOCATION/usr/lib64",
+            "$XROOTD_LOCATION/usr/lib",  # search 32-bit libs too
         ]
     )
 
@@ -55,28 +55,28 @@ def write_setup_in_files(dest_dir, dver, basearch):
     #
     # # Arch-independent python stuff always goes in usr/lib/, even on x86_64
     # if dver == 'el8':
-    #     osg_pythonpath = "$OSG_LOCATION/usr/lib/python3.6/site-packages"
+    #     local_pythonpath = "$XROOTD_LOCATION/usr/lib/python3.6/site-packages"
     #     if basearch == 'x86_64':
-    #         osg_pythonpath += ":$OSG_LOCATION/usr/lib64/python3.6/site-packages"
+    #         local_pythonpath += ":$XROOTD_LOCATION/usr/lib64/python3.6/site-packages"
     # elif dver == 'el9':
-    #     osg_pythonpath = "$OSG_LOCATION/usr/lib/python3.9/site-packages"
+    #     local_pythonpath = "$XROOTD_LOCATION/usr/lib/python3.9/site-packages"
     #     if basearch == 'x86_64':
-    #         osg_pythonpath += ":$OSG_LOCATION/usr/lib64/python3.9/site-packages"
+    #         local_pythonpath += ":$XROOTD_LOCATION/usr/lib64/python3.9/site-packages"
     # elif dver == 'el10':
-    #     osg_pythonpath = "$OSG_LOCATION/usr/lib/python3.12/site-packages"
+    #     local_pythonpath = "$XROOTD_LOCATION/usr/lib/python3.12/site-packages"
     #     if basearch == 'x86_64':
-    #         osg_pythonpath += ":$OSG_LOCATION/usr/lib64/python3.12/site-packages"
+    #         local_pythonpath += ":$XROOTD_LOCATION/usr/lib64/python3.12/site-packages"
     # else:
     #     raise Exception("Unknown dver %r" % dver)
 
-    osg_manpath = "$OSG_LOCATION/usr/share/man"
+    local_manpath = "$XROOTD_LOCATION/usr/share/man"
 
     for sh in 'csh', 'sh':
         dest_path = os.path.join(dest_dir, 'setup.%s.in' % sh)
         text_to_write = (
             "# Source this file if using %s or a shell derived from it\n" % sh
         )
-        setup_local = "$OSG_LOCATION/setup-local.%s" % sh
+        setup_local = "$XROOTD_LOCATION/setup-local.%s" % sh
 
         _setenv = shell_construct[sh]['setenv']
         _ifdef = shell_construct[sh]['ifdef']
@@ -85,18 +85,18 @@ def write_setup_in_files(dest_dir, dver, basearch):
         _ifreadable = shell_construct[sh]['ifreadable']
         _source = shell_construct[sh]['source']
 
-        # Set OSG_LOCATION first because all the other variables depend on it
-        text_to_write += _setenv("OSG_LOCATION", "@@OSG_LOCATION@@")
+        # Set XROOTD_LOCATION first because all the other variables depend on it
+        text_to_write += _setenv("XROOTD_LOCATION", "@@XROOTD_LOCATION@@")
 
         for variable, value in [
-            ("PATH", "$OSG_LOCATION/usr/bin:$OSG_LOCATION/usr/sbin:$PATH"),
+            ("PATH", "$XROOTD_LOCATION/usr/bin:$XROOTD_LOCATION/usr/sbin:$PATH"),
         ]:
             text_to_write += _setenv(variable, value)
 
         for variable, value in [
-            ("LD_LIBRARY_PATH", osg_ld_library_path),
-            # ("PYTHONPATH", osg_pythonpath),
-            ("MANPATH", osg_manpath),
+            ("LD_LIBRARY_PATH", local_ld_library_path),
+            # ("PYTHONPATH", local_pythonpath),
+            ("MANPATH", local_manpath),
         ]:
 
             text_to_write += (
