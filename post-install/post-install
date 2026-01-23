@@ -69,7 +69,7 @@ def write_setup_from_templates(staging_dir, final_osg_location):
     for setup_file, mode in (
         ('setup.sh', 0o644),
         ('setup.csh', 0o644),
-        ('osgrun', 0o755),
+        ('tarball-run', 0o755),
     ):
         setup_in_file = setup_file + ".in"
         setup_in_path = os.path.join(abs_staging_dir, "portable-xrootd", setup_in_file)

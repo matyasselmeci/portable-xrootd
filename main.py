@@ -94,6 +94,7 @@ def make_tarball(
             version = "unknown"
 
     tarball_name = bundlecfg[bundle]["tarballname"] % {
+        "dver": dver,
         "version": version,
         "relnum": relnum,
     }
