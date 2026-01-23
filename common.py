@@ -1,5 +1,6 @@
 import errno
 import os
+import re
 import subprocess
 import sys
 import typing
@@ -57,6 +58,18 @@ def to_bytes(strlike, encoding="latin-1", errors="backslashescape"):
         return strlike.encode(encoding, errors)
     else:
         return strlike
+
+
+def sanitize_image_tag(image_tag: str) -> str:
+    """
+    Return the sanitized version of an image tag.
+    A tag name follows the same rules as DNS for what's permitted to be in it.
+    """
+    it = image_tag.strip()
+    it = re.sub(r'[^a-zA-Z0-9.-]+', '-', it)
+    it = it[:64]
+    it = it.strip('.-')
+    return it
 
 
 class MountProcFS:

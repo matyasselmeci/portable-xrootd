@@ -1,11 +1,10 @@
 import json
 import os
-import shlex
 import shutil
 import subprocess
 import tarfile
 import tempfile
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from common import Error, Pathable
 
@@ -39,9 +38,9 @@ RUN yum install -y epel-release 'dnf-command(config-manager)' \
 
 FROM {basename} AS {bundle}-{dver}
 RUN \
-    yum install -y {packages} \
+    yum install -y {flags} {packages} \
     && yum clean all \
-    && rpm -qa | sort > /rpm-versions.txt \
+    && rpm -q {packages} | sort > /portable-xrootd/versions.txt \
     && xargs -d '\n' -a /paths-to-delete.txt rm -rf \
     && python3 /envsetup.py /portable-xrootd {dver} {basearch} \
     && touch /portable-xrootd/*
@@ -75,7 +74,11 @@ class Docker:
 
 
 def render_dockerfile(
-    bundlecfg: Mapping[str, Mapping[str, Any]], bundle: str, dver: str, basearch: str
+    bundlecfg: Mapping[str, Mapping[str, Any]],
+    bundle: str,
+    dver: str,
+    basearch: str,
+    flags: Sequence[str] = (),
 ):
     values = dict()
     values.update(VALUES_DVER[dver])
@@ -86,6 +89,10 @@ def render_dockerfile(
         "stage1", bundlecfg[bundle]["stage1file"] % {"dver": dver}
     )
     values["packages"] = " ".join(bundlecfg[bundle]["packages"].split())
+    if isinstance(flags, str):  # str is a sequence of str
+        values["flags"] = flags
+    else:
+        values["flags"] = " ".join(flags)
     return DOCKERFILE_TEMPLATE.format(**values)
 
 
@@ -140,16 +147,3 @@ def extract_top_layer(image: str, destpath: Pathable) -> None:
                 if not layer_fh:
                     raise Error(f"Could not extract {topmost_layer_name} from image")
                 shutil.copyfileobj(layer_fh, destfh)
-
-
-def delete_wh_files_from_tarball(tarball: Pathable) -> None:
-    """
-    Delete the ".wh" files from a tarball layer which are files that get created
-    to signify that something has been deleted in that layer.
-    """
-    quoted_tarball = shlex.quote(str(tarball))
-    subprocess.run(
-        f"tar -tf {quoted_tarball} | grep -E '(^|/)[.]wh[.]' | xargs -r tar -f {quoted_tarball} --delete",
-        shell=True,
-        check=True,
-    )

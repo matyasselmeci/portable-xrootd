@@ -1,29 +1,31 @@
 #!/usr/bin/env python
 import configparser
 import os
-import re
 import shutil
 import subprocess
 import sys
 import tempfile
 from optparse import OptionParser
+from pathlib import Path
+from typing import Optional
 
 # make sure we can find our imports
 if __name__ == "__main__" and __package__ is None:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
-# import stage1
-# import stage2
+import docker
+import stage2
 from common import (
     DEFAULT_BASEARCH,
     VALID_BASEARCHES,
     VALID_DVERS,
+    Error,
     errormsg,
+    sanitize_image_tag,
     statusmsg,
     to_str,
 )
-import docker
 
 BUNDLES_FILE = 'bundles.ini'
 
@@ -37,22 +39,16 @@ def check_tools():
     return ret
 
 
-def get_repofile(prog_dir, bundlecfg, bundle, basearch, dver):
-    return os.path.join(
-        prog_dir,
-        bundlecfg.get(bundle, 'repofile') % {'basearch': basearch, 'dver': dver},
-    )
-
-
 def make_tarball(
-    bundlecfg,
-    bundle,
-    basearch,
-    dver,
-    packages,
+    *,
+    bundlecfg: configparser.RawConfigParser,
+    bundle: str,
+    basearch: str,
+    dver: str,
+    image_name: str,
     patch_dirs,
     prog_dir,
-    stage_dir,
+    stage_dir: Path,
     relnum="0",
     extra_repos=None,
     version=None,
@@ -61,74 +57,84 @@ def make_tarball(
     Returns (success (bool), tarball_path (relative), tarball_size (in bytes))
 
     """
-    repofile = get_repofile(prog_dir, bundlecfg, bundle, basearch=basearch, dver=dver)
-
     extra_repos = extra_repos or []
 
-    with yumconf.YumInstaller(repofile, dver, basearch, extra_repos) as yum:
-        if not version:
-            if bundlecfg.has_option(bundle, 'versionrpm'):
-                version = yum.repoquery(
-                    bundlecfg.get(bundle, 'versionrpm'),
-                    "--latest-limit",
-                    "1",
-                    "--queryformat=%{VERSION}",
-                ).rstrip()
-            else:
-                version = 'unknown'
-        tarball_path = bundlecfg.get(bundle, 'tarballname') % locals()
+    flags = [f"--enablerepo={repo}" for repo in extra_repos]
 
-        post_scripts_dir = os.path.join(prog_dir, "post-install")
+    doc = docker.Docker()
+    dockerfile = docker.render_dockerfile(
+        bundlecfg=bundlecfg,
+        bundle=bundle,
+        dver=dver,
+        basearch=basearch,
+        flags=flags,
+    )
+    try:
+        doc.build(dockerfile, image_name)
+    except (OSError, subprocess.CalledProcessError) as err:
+        errormsg(f"Failed to build Docker image: {err}")
+        return (False, None, 0)
 
-        statusmsg("Making stage 2 tarball for %s" % (packages))
-        if not stage2.make_stage2_tarball(
-            stage_dir=stage_dir,
-            packages=packages,
-            tarball=tarball_path,
-            patch_dirs=patch_dirs,
-            post_scripts_dir=post_scripts_dir,
-            repofile=repofile,
-            dver=dver,
-            basearch=basearch,
-            relnum=relnum,
-            extra_repos=extra_repos,
-        ):
-            errormsg(
-                f"Making stage 2 tarball for {packages} unsuccessful. Files have been left in {stage_dir!r}"
-            )
-            return (False, None, 0)
-        tarball_size = os.stat(tarball_path)[6]
-        return (True, tarball_path, tarball_size)
+    stage_dir.mkdir(parents=True, exist_ok=True)
+    layer_tarball_path = stage_dir / "layer.tar"
+    try:
+        docker.extract_top_layer(image_name, layer_tarball_path)
+    except Error as err:
+        errormsg(f"Failed to extract top layer: {err}")
+        return (False, None, 0)
+
+    if not version:
+        try:
+            rpm_nvrs = stage2.get_rpm_nvrs_from_tarball(layer_tarball_path)
+            version = rpm_nvrs[bundlecfg[bundle]["versionrpm"]][1]
+        except KeyError:
+            version = "unknown"
+
+    tarball_name = bundlecfg[bundle]["tarballname"] % {
+        "version": version,
+        "relnum": relnum,
+    }
+
+    statusmsg("Making stage 2 tarball")
+    if not stage2.make_stage2_tarball(
+        tarball_name,
+        layer_tarball_path=layer_tarball_path,
+        stage_dir=stage_dir,
+        patch_dirs=patch_dirs,
+        dver=dver,
+        basearch=basearch,
+    ):
+        errormsg(
+            f"Making stage 2 tarball unsuccessful. "
+            f"Files have been left in '{stage_dir}'. "
+            f"Image has been left as '{image_name}'."
+        )
+        return (False, None, 0)
+    tarball_size = os.stat(tarball_name)[6]
+
+    try:
+        doc.do("rmi", image_name)
+    except subprocess.CalledProcessError as err:
+        errormsg(f"Warning: Failed to clean up image {image_name}: {err}")
+
+    return (True, tarball_name, tarball_size)
 
 
 def parse_cmdline_args(argv):
     parser = OptionParser(
         """
-    %prog [options] --version=<version> --dver=<dver> [--basearch=<basearch>]
-or: %prog [options] --version=<version> --all
+    %prog [options] --bundle=<bundle> --dver=<dver> [--basearch=<basearch>]
+or: %prog [options] --bundle=<bundle> --all
 """
     )
     parser.add_option(
         "-v",
         "--version",
         default=None,
-        help="Version of the tarball; will be taken from the versionrpm of the bundle, e.g. osg-version, if not specified",
+        help="Version of the tarball; will be taken from the versionrpm of the bundle if not specified",
     )
     parser.add_option(
         "-r", "--relnum", default="1", help="Release number. Default is %default."
-    )
-    parser.add_option(
-        "--prerelease",
-        default=True,
-        action="store_true",
-        help="Take packages from the prerelease repository (the default)",
-    )
-    parser.add_option(
-        "--no-prerelease",
-        "--noprerelease",
-        dest="prerelease",
-        action="store_false",
-        help="Do not take packages from the prerelease repository",
     )
     parser.add_option(
         "-d",
@@ -153,12 +159,6 @@ or: %prog [options] --version=<version> --all
         help="Build tarballs for all dver,basearch combinations.",
     )
     parser.add_option(
-        "--keep",
-        default=False,
-        action="store_true",
-        help="Keep temp dirs after tarball creation",
-    )
-    parser.add_option(
         "--bundle",
         dest="bundles",
         action="append",
@@ -181,20 +181,11 @@ or: %prog [options] --version=<version> --all
     if not options.all and not options.dver:
         parser.error("Either --all or --dver must be specified.")
 
-    if not options.bundles and not options.version:
-        parser.error("--version or --bundle must be specified")
-
-    if options.version:
-        match = re.search(r'^[0-9.]+\.', options.version)
-        if match:
-            options.osgver = match.group()[0:-1]
-        else:
-            options.osgver = None
-
     return (options, args)
 
 
-def main(argv):
+def main(argv: Optional[list[str]] = None) -> int:
+    argv = argv or sys.argv
     # prog_name = os.path.basename(argv[0])
     prog_dir = os.path.dirname(argv[0])
 
@@ -202,20 +193,18 @@ def main(argv):
 
     statusmsg("Checking required tools")
     if not check_tools():
-        return 1
+        return 127
 
-    bundlecfg = configparser.ConfigParser()
+    bundlecfg = configparser.RawConfigParser()
     bundlecfg.read(os.path.join(prog_dir, BUNDLES_FILE))
 
     if options.bundles:
         bundles = options.bundles
     else:
-        default_bundles_key = 'default_bundles_' + options.osgver
-        if bundlecfg.has_option('GLOBAL', default_bundles_key):
-            bundles = bundlecfg.get('GLOBAL', default_bundles_key).split(' ')
+        if bundlecfg.has_option('GLOBAL', 'default_bundles'):
+            bundles = bundlecfg.get('GLOBAL', 'default_bundles').split(' ')
         else:
-            errormsg("Option not found: section GLOBAL, key " + default_bundles_key)
-            errormsg("No default set of bundles for osgver " + options.osgver)
+            errormsg("Option not found: section GLOBAL, key default_bundles")
             return 2
 
     if not bundles:
@@ -234,30 +223,17 @@ def main(argv):
 
         for dver, basearch in paramsets:
             stage_dir_parent = tempfile.mkdtemp(prefix=f'stagedir-{dver}-{basearch}-')
-            stage_dir = os.path.join(stage_dir_parent, bundlecfg.get(bundle, 'dirname'))
+            stage_dir = Path(stage_dir_parent) / bundlecfg.get(bundle, 'dirname')
 
-            statusmsg("Making stage 1 dir")
-
-            repofile = get_repofile(
-                prog_dir, bundlecfg, bundle, basearch=basearch, dver=dver
-            )
-            stage1_pkglist_file = os.path.join(
-                prog_dir,
-                bundlecfg.get(bundle, 'stage1file')
-                % {'basearch': basearch, 'dver': dver},
-            )
-            if not stage1.make_stage1_dir(
-                stage_dir, repofile, dver, basearch, stage1_pkglist_file
-            ):
-                errormsg(
-                    "Making stage 1 dir unsuccessful. Files have been left in %r"
-                    % stage_dir
+            image_name = (
+                sanitize_image_tag(bundle)
+                + ":"
+                + sanitize_image_tag(
+                    os.path.basename(stage_dir_parent)[len('stagedir-') :]
                 )
-                failed_paramsets.append([bundle, dver, basearch])
-                continue
+            )
 
-            stage2_pkglist = bundlecfg.get(bundle, 'packages').split()
-            patch_dirs = []
+            patch_dirs: list[str] = []
             if bundlecfg.has_option(bundle, 'patchdirs'):
                 patch_dirs = [
                     os.path.join(prog_dir, x)
@@ -272,7 +248,7 @@ def main(argv):
                 bundle=bundle,
                 basearch=basearch,
                 dver=dver,
-                packages=stage2_pkglist,
+                image_name=image_name,
                 patch_dirs=patch_dirs,
                 prog_dir=prog_dir,
                 stage_dir=stage_dir,
@@ -290,16 +266,16 @@ def main(argv):
                     print("error getting file count: %s" % e)
                 written_tarballs.append([tarball_path, tarball_size, tarball_filecount])
                 print(
-                    "Tarball created as %r, size %d bytes, %d files"
-                    % (tarball_path, tarball_size, tarball_filecount)
+                    "Tarball created as {0}, size {1:,} bytes, {2:,} files".format(
+                        tarball_path, tarball_size, tarball_filecount
+                    )
                 )
             else:
                 failed_paramsets.append([bundle, dver, basearch])
                 continue
 
-            if not options.keep:
-                statusmsg("Removing temp dirs")
-                shutil.rmtree(stage_dir_parent, ignore_errors=True)
+            statusmsg("Removing temp dirs")
+            shutil.rmtree(stage_dir_parent, ignore_errors=True)
         # end for dver, basearch in paramsets
     # end for bundle in options.bundles
 
@@ -307,8 +283,7 @@ def main(argv):
         statusmsg("The following tarballs were written:")
         for tarball in written_tarballs:
             print(
-                "    path: %-50s size: %9d bytes %5s files"
-                % (tarball[0], tarball[1], tarball[2])
+                f"     path: {tarball[0]:<50} size: {tarball[1]:>12,} bytes {tarball[2]:>6,} files"
             )
     if failed_paramsets:
         errormsg("The following sets of parameters failed:")

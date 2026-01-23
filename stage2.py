@@ -1,79 +1,43 @@
 import glob
 import os
-import shutil
+import shlex
 import subprocess
-import tempfile
+from typing import Any
 
 import common
-import envsetup
-import yumconf
 from common import (
     Error,
+    Pathable,
     errormsg,
-    safe_makedirs,
-    statusmsg,
-    to_bytes,
-    to_str,
 )
 
 
-def package_installed(stage_dir_abs, pkg):
-    """Return True if a package is installed"""
-    return subprocess.call(["rpm", "--root", stage_dir_abs, "-q", pkg]) == 0
-
-
-def get_stage1_rpmlist(stage_dir_abs):
-    """Return a list of RPM NVRs read from the stage 1 RPM list file.
-    The RPMs in this list will be excluded from the final RPM list that
-    will be in the tarball contents.
-
+def delete_wh_files_from_tarball(tarball: Pathable) -> None:
     """
-    with open(os.path.join(stage_dir_abs, 'stage1_rpmlist')) as stage1_rpmlist:
-        return stage1_rpmlist.read().strip().split()
+    Delete the ".wh" files from a tarball layer which are files that get created
+    to signify that something has been deleted in that layer.
+    """
+    quoted_tarball = shlex.quote(str(tarball))
+    subprocess.run(
+        f"tar -tf {quoted_tarball} | grep -E '(^|/)[.]wh[.]' | xargs -r tar -f {quoted_tarball} --delete",
+        shell=True,
+        check=True,
+    )
 
 
-def write_package_list_file(stage_dir_abs, exclude_list=None):
-    exclude_list = exclude_list or []
-    if isinstance(exclude_list, str):
-        exclude_list = [exclude_list]
-
-    cmd = ["rpm", "--root", stage_dir_abs, "-qa"]
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-    output: str = to_str(proc.communicate()[0])
-    retcode = proc.returncode
-
-    if retcode != 0:
-        raise subprocess.CalledProcessError(retcode, ' '.join(cmd))
-
-    assert isinstance(output, str)
-    package_set: set[str] = set(output.strip().split())  # type:ignore
-    exclude_set = set(exclude_list)
-    package_set.difference_update(exclude_set)
-
-    with open(os.path.join(stage_dir_abs, 'osg/rpm-versions.txt'), 'w') as output_fh:
-        output_fh.write("\n".join(sorted(package_set)) + "\n")
+def extract_layer_tarball(stage_dir_abs: Pathable, layer_tarball: Pathable):
+    """
+    Extracts the layer tarball into the staging directory.
+    """
+    try:
+        subprocess.run(
+            ["tar", "-xf", str(layer_tarball), "-C", str(stage_dir_abs)], check=True
+        )
+    except (OSError, subprocess.CalledProcessError) as err:
+        raise Error(f"Failed to extract layer tarball: {err}")
 
 
-def install_packages(
-    stage_dir_abs, packages, repofile, dver, basearch, extra_repos=None
-):
-    """Install packages into a stage1 dir"""
-    if isinstance(packages, str):
-        packages = [packages]
-
-    with common.MountProcFS(stage_dir_abs):
-        with yumconf.YumInstaller(repofile, dver, basearch, extra_repos) as yum:
-            yum.install(installroot=stage_dir_abs, packages=packages)
-
-    # Check that the packages got installed
-    for pkg in packages:
-        if pkg.startswith('@'):
-            continue  # can't check on groups
-        if not package_installed(stage_dir_abs, pkg):
-            raise Error("%r not installed after yum install" % pkg)
-
-
-def patch_installed_packages(stage_dir_abs, patch_dirs, dver):
+def patch_installed_packages(stage_dir_abs, patch_dirs):
     """Apply all patches in patch_dir to the files in stage_dir_abs
 
     Assumptions:
@@ -96,57 +60,12 @@ def patch_installed_packages(stage_dir_abs, patch_dirs, dver):
             patch_files += glob.glob(os.path.join(patch_dir_abs, "*.patch"))
         patch_files.sort(key=os.path.basename)
         for patch_file in patch_files:
-            statusmsg("Applying patch %r" % patch_file)
-            # statusmsg("Applying patch %r" % os.path.basename(patch_file))
+            common.statusmsg("Applying patch %r" % patch_file)
             err = subprocess.call(['patch', '-p1', '--force', '--input', patch_file])
             if err:
                 raise Error("patch file %r failed to apply" % patch_file)
     finally:
         os.chdir(oldwd)
-
-
-def copy_osg_post_scripts(stage_dir_abs, post_scripts_dir, dver, basearch):
-    """Copy osg scripts from post_scripts_dir to the stage2 directory"""
-
-    if not os.path.isdir(post_scripts_dir):
-        raise Error("script directory (%r) not found" % post_scripts_dir)
-
-    post_scripts_dir_abs = os.path.abspath(post_scripts_dir)
-    dest_dir = os.path.join(stage_dir_abs, "osg")
-    safe_makedirs(dest_dir)
-
-    for script_name in 'osg-post-install', 'osg_post_install.py', 'osgrun.in':
-        script_path = os.path.join(post_scripts_dir_abs, script_name)
-        dest_path = os.path.join(dest_dir, script_name)
-        try:
-            shutil.copyfile(script_path, dest_path)
-            os.chmod(dest_path, 0o755)
-        except OSError as err:
-            raise Error(
-                f"unable to copy script ({script_path!r}) to ({dest_dir!r}): {err}"
-            )
-
-    try:
-        envsetup.write_setup_in_files(dest_dir, dver, basearch)
-    except OSError as err:
-        raise Error(
-            "unable to create environment script templates (setup.csh.in, setup.sh.in): %s"
-            % err
-        )
-
-
-def _write_exclude_list(
-    stage1_filelist_path, exclude_list_path, prepend_dir, extra_excludes=None
-):
-    assert stage1_filelist_path != exclude_list_path
-    with open(stage1_filelist_path, 'rb') as in_fh:
-        with open(exclude_list_path, 'wb') as out_fh:
-            for line in in_fh:
-                out_fh.write(os.path.join(to_bytes(prepend_dir), line.lstrip(b'./')))
-    if extra_excludes:
-        with open(exclude_list_path, 'ab') as out_fh:
-            for excl in extra_excludes:
-                out_fh.write(to_bytes(os.path.join(prepend_dir, excl) + '\n'))
 
 
 def tar_stage_dir(stage_dir_abs, tarball):
@@ -157,41 +76,15 @@ def tar_stage_dir(stage_dir_abs, tarball):
     stage_dir_parent = os.path.dirname(stage_dir_abs)
     stage_dir_base = os.path.basename(stage_dir_abs)
 
-    excludes = [
-        "var/log/yum.log",
-        "tmp/*",
-        "var/cache/yum/*",
-        "var/lib/rpm/*",
-        "var/lib/yum/*",
-        "var/tmp/*",
-        "dev/*",
-        "proc/*",
-        "etc/rc.d/rc?.d",
-        "etc/alternatives",
-        "var/lib/alternatives",
-        "usr/bin/[[]",
-        "usr/share/man/man1/[[].1.gz",
-        "bin/dbus*",
-        "lib/libcap*",
-        "lib/dbus*",
-        "lib/security/pam*.so",
-        "lib64/libcap*",
-        "lib64/dbus*",
-        "lib64/security/pam*.so",
-        "usr/bin/gnome*",
-        "*~",
-        "*.py[co]",
-        "__pycache__",
-        "stage1_rpmlist",
+    cmd = [
+        "tar",
+        "-C",
+        stage_dir_parent,
+        "--exclude=layer.tar",
+        "-czf",
+        tarball_abs,
+        stage_dir_base,
     ]
-
-    cmd = ["tar", "-C", stage_dir_parent, "-czf", tarball_abs, stage_dir_base]
-
-    stage1_filelist = os.path.join(stage_dir_abs, 'stage1_filelist')
-    if os.path.isfile(stage1_filelist):
-        exclude_list = os.path.join(stage_dir_parent, 'exclude_list')
-        _write_exclude_list(stage1_filelist, exclude_list, stage_dir_base, excludes)
-        cmd.insert(3, '--exclude-from=%s' % exclude_list)
 
     err = subprocess.call(cmd)
     if err:
@@ -200,115 +93,76 @@ def tar_stage_dir(stage_dir_abs, tarball):
         )
 
 
-def fix_alternatives_symlinks(stage_dir_abs):
-    for root, dirs, files in os.walk(os.path.join(stage_dir_abs, 'usr')):
-        for afile in files:
-            afilepath = os.path.join(root, afile)
-            if not os.path.islink(afilepath):
-                continue
-            linkpath = os.readlink(afilepath)
-            if not linkpath.startswith('/etc/alternatives'):
-                continue
-            stage_linkpath = os.path.join(stage_dir_abs, linkpath.lstrip('/'))
-            if not os.path.islink(stage_linkpath):
-                print(
-                    f"broken symlink to alternatives? {afilepath} -> {stage_linkpath}"
-                )
-                continue
-            alternatives_linkpath = os.readlink(stage_linkpath)
-            stage_alternatives_linkpath = os.path.join(
-                stage_dir_abs, alternatives_linkpath.lstrip('/')
-            )
-            if not os.path.exists(stage_alternatives_linkpath):
-                print(
-                    f"broken symlink from alternatives? {stage_linkpath} -> {stage_alternatives_linkpath}"
-                )
-                continue
-            new_linkpath = os.path.relpath(
-                stage_alternatives_linkpath, start=os.path.dirname(afilepath)
-            )
-            os.unlink(afilepath)
-            os.symlink(new_linkpath, afilepath)
-
-
 def fix_permissions(stage_dir_abs):
     return subprocess.call(['chmod', '-R', 'u+rwX', stage_dir_abs])
 
 
-def remove_empty_dirs_from_tarball(tarball, topdir, recreate_dirs=None):
-    recreate_dirs = recreate_dirs or []
-    tarball_abs = os.path.abspath(tarball)
-    tarball_base = os.path.basename(tarball)
-    extract_dir = tempfile.mkdtemp()
-    oldcwd = os.getcwd()
+def get_rpm_nvrs_from_tarball(
+    tarball: Pathable,
+) -> dict[str, tuple[str, str, str]]:
+    """
+    Reads the package list inside the given tarball and returns the NVRs of the
+    RPMs.  The NVRs are a tuple in a dict keyed by name, e.g.
+    nvrs["xrootd"] = ("xrootd", "5.9.1", "1.osg24")
+    """
     try:
-        os.chdir(extract_dir)
-        subprocess.check_call(['tar', '-xzf', tarball_abs])
-        subprocess.call(['find', topdir, '-type', 'd', '-empty', '-delete'])
-        # hack to preserve these directories
-        for rdir in recreate_dirs:
-            safe_makedirs(os.path.join(topdir, rdir.lstrip('/')))
-        subprocess.check_call(['tar', '-czf', tarball_base, topdir])
-        shutil.copy(tarball_base, tarball_abs)
-    finally:
-        os.chdir(oldcwd)
-        shutil.rmtree(extract_dir)
+        result = subprocess.run(
+            ["tar", "--to-stdout", "-xf", tarball, "portable-xrootd/versions.txt"],
+            stdout=subprocess.PIPE,
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as err:
+        raise Error(f"Unable to get versions from {tarball}") from err
+    nvrs = {}
+    for line in result.stdout.decode().splitlines():
+        line = line.strip()
+        try:
+            name, version, release = line.rsplit("-", 2)
+        except ValueError:
+            continue
+        nvrs[name] = (name, version, release)
+
+    return nvrs
 
 
 def make_stage2_tarball(
-    stage_dir,
-    packages,
-    tarball,
-    patch_dirs,
-    post_scripts_dir,
-    repofile,
-    dver,
-    basearch,
-    relnum="0",
-    extra_repos=None,
+    tarball_name: str,
+    *,
+    layer_tarball_path: Pathable,
+    stage_dir: Pathable,
+    patch_dirs: list[str],
+    dver: str,
+    basearch: str,
 ):
-    def _statusmsg(msg):
-        statusmsg(f"[{dver!r},{basearch!r}]: {msg}")
+    def statusmsg(msg: Any):
+        common.statusmsg(f"[{dver},{basearch}]: {msg}")
 
-    _statusmsg("Making stage2 tarball in %r" % stage_dir)
+    statusmsg(f"Making stage2 tarball in {stage_dir}")
 
     stage_dir_abs = os.path.abspath(stage_dir)
-    try:
-        _statusmsg("Installing packages %r" % packages)
-        install_packages(stage_dir_abs, packages, repofile, dver, basearch, extra_repos)
 
-        if patch_dirs is not None:
+    try:
+        statusmsg("Deleting .wh. files from layer tarball")
+        delete_wh_files_from_tarball(layer_tarball_path)
+
+        statusmsg("Extracting layer tarball")
+        extract_layer_tarball(
+            stage_dir_abs=stage_dir_abs,
+            layer_tarball=os.path.abspath(layer_tarball_path),
+        )
+
+        if patch_dirs:
             if isinstance(patch_dirs, str):
                 patch_dirs = [patch_dirs]
 
-            _statusmsg("Patching packages using %r" % patch_dirs)
-            patch_installed_packages(
-                stage_dir_abs=stage_dir_abs, patch_dirs=patch_dirs, dver=dver
-            )
+            statusmsg("Patching packages using %r" % patch_dirs)
+            patch_installed_packages(stage_dir_abs=stage_dir_abs, patch_dirs=patch_dirs)
 
-        _statusmsg("Fixing broken /etc/alternatives symlinks")
-        fix_alternatives_symlinks(stage_dir_abs)
-
-        _statusmsg("Copying OSG scripts from %r" % post_scripts_dir)
-        copy_osg_post_scripts(stage_dir_abs, post_scripts_dir, dver, basearch)
-
-        stage1_rpmlist = get_stage1_rpmlist(stage_dir_abs)
-        _statusmsg("Writing package list to osg/rpm-versions.txt")
-        write_package_list_file(stage_dir_abs, exclude_list=stage1_rpmlist)
-
-        _statusmsg("Fixing permissions")
+        statusmsg("Fixing permissions")
         fix_permissions(stage_dir_abs)
 
-        _statusmsg("Creating tarball %r" % tarball)
-        tar_stage_dir(stage_dir_abs, tarball)
-
-        _statusmsg("Removing empty dirs from tarball")
-        recreate_dirs = ['var/lib/osg-ca-certs']
-        if package_installed(stage_dir_abs, 'fetch-crl'):
-            recreate_dirs.append('etc/fetch-crl.d')
-        remove_empty_dirs_from_tarball(
-            tarball, os.path.basename(stage_dir), recreate_dirs
-        )
+        statusmsg("Creating tarball %r" % tarball_name)
+        tar_stage_dir(stage_dir_abs, tarball_name)
 
         return True
     except Error as err:
