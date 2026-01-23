@@ -1,7 +1,0 @@
-FROM docker.io/library/almalinux:8 AS alma8core
-RUN yum install --allowerasing -y @core
-
-FROM alma8core AS osgel8base
-RUN yum install -y epel-release \
-    https://repo.osg-htc.org/osg/25-main/osg-25-main-el8-release-latest.rpm \
-    && crb enable
