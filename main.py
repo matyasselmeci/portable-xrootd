@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import configparser
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -44,17 +45,23 @@ def make_tarball(
     dver: str,
     image_name: str,
     patch_dirs,
-    prog_dir,
     stage_dir: Path,
+    osg_repo: str,
     relnum="0",
-    extra_repos=None,
     version=None,
 ):
     """Run all the steps to make a non-root tarball.
     Returns (success (bool), tarball_path (relative), tarball_size (in bytes))
 
     """
-    extra_repos = extra_repos or []
+    if osg_repo in ["production", "osg"]:
+        extra_repos = []
+    elif osg_repo == "testing":
+        extra_repos = ["osg-testing"]
+    elif osg_repo == "development":
+        extra_repos = ["osg-development"]
+    else:
+        raise ValueError(f"Invalid OSG repository: {osg_repo}")
 
     flags = [f"--enablerepo={repo}" for repo in extra_repos]
 
@@ -118,8 +125,7 @@ def make_tarball(
 def parse_cmdline_args(argv):
     parser = OptionParser(
         """
-    %prog [options] --bundle=<bundle> --dver=<dver>
-or: %prog [options] --bundle=<bundle> --all
+    %prog [options] [<bundle>]...
 """
     )
     parser.add_option(
@@ -139,32 +145,16 @@ or: %prog [options] --bundle=<bundle> --all
         + ")",
     )
     parser.add_option(
-        "-a",
-        "--all",
-        default=False,
-        action="store_true",
-        help="Build tarballs for all distro versions.",
-    )
-    parser.add_option(
-        "--bundle",
-        dest="bundles",
-        action="append",
-        default=[],
-        help=f"Names of bundles (from {BUNDLES_FILE}) to make tarballs for",
-    )
-    parser.add_option(
-        "--extra-repos",
-        dest="extra_repos",
-        action="append",
-        help="Extra yum repos to use",
+        "--osg-repo",
+        default="testing",
+        help="Select which OSG repo to use. (Default: %default)",
+        choices=["production", "osg", "testing", "development"],
     )
 
     options, args = parser.parse_args(argv[1:])
 
     if options.dver and options.dver not in VALID_DVERS:
         parser.error("--dver must be in " + ", ".join(VALID_DVERS))
-    if not options.all and not options.dver:
-        parser.error("Either --all or --dver must be specified.")
 
     return (options, args)
 
@@ -183,8 +173,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     bundlecfg = configparser.RawConfigParser()
     bundlecfg.read(os.path.join(prog_dir, BUNDLES_FILE))
 
-    if options.bundles:
-        bundles = options.bundles
+    if args:
+        bundles = args
     else:
         if bundlecfg.has_option('GLOBAL', 'default_bundles'):
             bundles = bundlecfg.get('GLOBAL', 'default_bundles').split(' ')
@@ -199,12 +189,17 @@ def main(argv: Optional[list[str]] = None) -> int:
     failed_paramsets = []
     written_tarballs = []
     for bundle in bundles:
-        if options.all:
-            dvers = bundlecfg.get(bundle, 'dvers').split()
-        else:
-            dvers = [options.dver]
+        dvers = set(bundlecfg.get(bundle, 'dvers').split())
+        if options.dver:
+            dvers = dvers.intersection({options.dver})
+        if not dvers:
+            statusmsg(
+                f"Skipping {bundle} because it is not supported for the "
+                f"selected distro versions"
+            )
+            continue
 
-        for dver in dvers:
+        for dver in sorted(dvers):
             stage_dir_parent = tempfile.mkdtemp(prefix=f'stagedir-{dver}-')
             stage_dir = Path(stage_dir_parent) / bundlecfg.get(bundle, 'dirname')
 
@@ -231,17 +226,18 @@ def main(argv: Optional[list[str]] = None) -> int:
                 dver=dver,
                 image_name=image_name,
                 patch_dirs=patch_dirs,
-                prog_dir=prog_dir,
                 stage_dir=stage_dir,
+                osg_repo=options.osg_repo,
                 relnum=options.relnum,
-                extra_repos=options.extra_repos,
                 version=options.version,
             )
 
-            if success:
+            if success and tarball_path is not None:
                 tarball_filecount = "?"
                 try:
-                    with os.popen("tar tzf %s | wc -l" % tarball_path) as ph:
+                    with os.popen(
+                        "tar -tf %s | wc -l" % shlex.quote(tarball_path)
+                    ) as ph:
                         tarball_filecount = int(to_str(ph.read()))
                 except (OSError, ValueError) as e:
                     print("error getting file count: %s" % e)
