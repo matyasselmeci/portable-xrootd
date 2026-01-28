@@ -2,3 +2,10 @@
 /*.tar.gz
 /*.tar
 /yumconf.py
+__pycache__/
+
+# Extracted directories for various tarballs
+pelican-with-xrootd/
+xrootd-for-pelican/
+pelican-no-s3/
+xrootd-no-s3/
