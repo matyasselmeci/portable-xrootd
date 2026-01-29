@@ -8,10 +8,11 @@ them as root.  In addition, there are helper scripts to set the environment
 
 The tarballs are operating-system-specific, since they use shared libraries
 from the system.  You must download the tarball appropriate for your operating
-system and architecture.
+system and architecture, or build them from scratch (see
+["Rebuilding"](#rebuilding)).
 
-This project is based on work from the [OSG Worker Node Tarballs]
-(https://github.com/opensciencegrid/tarball-client).
+This project is based on work from the
+[OSG Worker Node Tarballs](https://github.com/opensciencegrid/tarball-client).
 
 Dependencies
 ------------
@@ -23,17 +24,22 @@ libraries.  You will need:
 - gzip
 - python3
 - openssl
+- (if building tarballs) docker/podman
 
+Supported distributions include:
+- EL9
+- EL8
 
 Usage
 -----
 
 ### General usage
 
-1. Download the tarball appropriate for your distribution and extract it.
+1. Download or build the tarball appropriate for your distribution and extract it.
 2. cd into the extracted directory.
-3. Run the `post-install/post-install` script.  The script will create
-   `setup.sh`, `setup.csh`, and `tarball-run` files.
+3. Run the `portable-xrootd/post-install` script.  The script will create
+   `setup.sh`, `setup.csh`, and `tarball-run` files. Once created, these can be made
+   executable with `chmod +x setup.sh setup.csh tarball-run`.
 
 To set up your environment, run
     . setup.sh
@@ -46,12 +52,15 @@ the environment set up.
 ### pelican-with-xrootd tarball
 
 This contains the XRootD dependencies as well and the pelican-server itself.
-Example:
+Example (assumes `sh` shell):
 
 ```
 tar -xf pelican-with-xrootd-7.22.0-1.el9.tar.gz
 cd pelican-with-xrootd
-./post-install/post-install
+./portable-xrootd/post-install
+### Make scripts executable and setup environment
+chmod +x setup.sh setup.csh tarball-run
+./setup.sh
 ### Configure Pelican via PELICAN_* environment variables or $HOME/.config/pelican.yaml
 ./tarball-run pelican-server cache serve
 ```
@@ -60,11 +69,14 @@ cd pelican-with-xrootd
 
 This tarball contains the XRootD dependencies for Pelican but does not include
 Pelican itself.  Download a version of the Pelican server and extract it into
-$PATH.
+$PATH. Example (assumes `sh` shell):
 ```
 tar -xf xrootd-for-pelican-5.9.1-1.el9.tar.gz
 cd xrootd
-./post-install/post-install
+./portable-xrootd/post-install
+### Make scripts executable and setup environment
+chmod +x setup.sh setup.csh tarball-run
+./setup.sh
 ### Configure Pelican via PELICAN_* environment variables or $HOME/.config/pelican.yaml
 ./tarball-run pelican-server cache serve
 ```
