@@ -19,6 +19,11 @@ VALUES_DVER = {
         "fromstagename": "alma9core",
         "basename": "osgel9base",
     },
+    "el10": {
+        "fromimage": "docker.io/library/almalinux:10",
+        "fromstagename": "alma10core",
+        "basename": "osgel10base",
+    },
 }
 
 DOCKERFILE_TEMPLATE = r"""

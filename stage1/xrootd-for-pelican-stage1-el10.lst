@@ -1,0 +1,11 @@
+## Stage 1 packages
+## These packages, and their dependencies, will be installed into the image
+## before installing the bundle packages, and so will not be included in the
+## final product.
+
+# This is not useful in a tarball.
+logrotate
+# xrootd-specific dependencies that we want to exclude
+expect
+perl
+tcl
