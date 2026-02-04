@@ -27,6 +27,7 @@ libraries.  You will need:
 - (if building tarballs) docker/podman
 
 Supported distributions include:
+- EL10
 - EL9
 - EL8
 
@@ -38,30 +39,42 @@ Usage
 1. Download or build the tarball appropriate for your distribution and extract it.
 2. cd into the extracted directory.
 3. Run the `portable-xrootd/post-install` script.  The script will create
-   `setup.sh`, `setup.csh`, and `tarball-run` files. Once created, these can be made
-   executable with `chmod +x setup.sh setup.csh tarball-run`.
+   `setup.sh`, `setup.csh`, and `tarball-run` files.
+4. Configure Pelican by creating and editing `$HOME/.config/pelican.yaml`.
+   (You can also use the `PELICAN_*` environment variables.)
 
 To set up your environment, run
-    . setup.sh
+    source setup.sh
 or
-    . setup.csh
+    source setup.csh
 (depending on your shell).
+
 You can also run any command with the `tarball-run` in order to run it with
 the environment set up.
 
 ### pelican-with-xrootd tarball
 
 This contains the XRootD dependencies as well and the pelican-server itself.
-Example (assumes `sh` shell):
+
+Example 1 (assumes `sh` shell):
 
 ```
 tar -xf pelican-with-xrootd-7.22.0-1.el9.tar.gz
 cd pelican-with-xrootd
 ./portable-xrootd/post-install
-### Make scripts executable and setup environment
-chmod +x setup.sh setup.csh tarball-run
-./setup.sh
-### Configure Pelican via PELICAN_* environment variables or $HOME/.config/pelican.yaml
+### Set up environment of running shell:
+source setup.sh
+### Start the cache (you should configure it first):
+pelican-server cache serve
+```
+
+Example 2 (assumes `sh` shell):
+
+```
+tar -xf pelican-with-xrootd-7.22.0-1.el9.tar.gz
+cd pelican-with-xrootd
+./portable-xrootd/post-install
+### Start the cache (you should configure it first):
 ./tarball-run pelican-server cache serve
 ```
 
@@ -69,15 +82,27 @@ chmod +x setup.sh setup.csh tarball-run
 
 This tarball contains the XRootD dependencies for Pelican but does not include
 Pelican itself.  Download a version of the Pelican server and extract it into
-$PATH. Example (assumes `sh` shell):
+$PATH.
+
+Example 1 (assumes `sh` shell):
+
 ```
 tar -xf xrootd-for-pelican-5.9.1-1.el9.tar.gz
 cd xrootd
 ./portable-xrootd/post-install
-### Make scripts executable and setup environment
-chmod +x setup.sh setup.csh tarball-run
-./setup.sh
-### Configure Pelican via PELICAN_* environment variables or $HOME/.config/pelican.yaml
+### Set up environment of running shell:
+source setup.sh
+### Start the cache (you should configure it first):
+pelican-server cache serve
+```
+
+Example 2 (assumes `sh` shell):
+
+```
+tar -xf xrootd-for-pelican-5.9.1-1.el9.tar.gz
+cd xrootd
+./portable-xrootd/post-install
+### Start the cache (you should configure it first):
 ./tarball-run pelican-server cache serve
 ```
 
